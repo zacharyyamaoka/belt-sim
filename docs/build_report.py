@@ -32,12 +32,25 @@ from bam_belt_sim import speed_policies as S  # noqa: E402
 from bam_belt_sim.engine import Sim  # noqa: E402
 from bam_belt_sim.metrics import summarize  # noqa: E402
 
+# WHY a path import: bam_cell_kpis is the stdlib sibling every pick-and-place page shares (src/dev/bam_cell_kpis)
+sys.path.insert(0, str(PKG.parent / "bam_cell_kpis"))
+from bam_cell_kpis import (  # noqa: E402
+    CellWindow,
+    Period,
+    assets_html,
+    capture_rate,
+    diversion_rate,
+    flow,
+    flow_display,
+    share_text,
+    tooltip,
+)
+
 RES = PKG / "docs" / "results"
 MEDIA = PKG / "docs" / "media"
 DATE = dt.date.today().isoformat()
 OUT_DIR = Path("/home/bam/bam_ws/reports/media")
 OUT = OUT_DIR / f"belt-sim-{DATE}.html"
-SIDE = OUT_DIR / f"belt-sim-{DATE}"
 RUNG_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
@@ -184,7 +197,8 @@ def realtime_factor():
 def table(headers, rows):
     th = "".join(f"<th>{h}</th>" for h in headers)
     trs = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
-    return f"<table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table>"
+    # WHY in a scroll box: a phone (390 px) scrolled the whole report sideways for the wide ladder tables (524 px)
+    return f'<div class="wrap"><table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>'
 
 
 def fmt_params(p: dict) -> str:
@@ -205,7 +219,108 @@ def speed_table(speed, names):
                   "tuned knobs"], rows)
 
 
-def main():
+# ---------------------------------------------------------------------------------------------- facility KPIs
+NO_MASS = "the belt sim's items carry a category and a value, no mass (engine.py ItemStream)"
+ATTEMPTS_NOTE = ("attempts are counted over the whole run, the 2 min warm-up included (metrics.attempts_per_min); every "
+                 "other number over the window after it")
+
+
+def kpi_window(name: str, d: dict) -> CellWindow:
+    """One rung of one world as a black box: items spawned onto the line, items picked into their bins.
+
+    WHY "open" accounting: the counts are flows over a stretch of a running line (mean of the eval seeds), so an item
+    picked in the window may have entered before it; bam_cell_kpis reports such a window's ratio as not measured
+    instead of clipping it.
+    """
+
+    minutes = d["window_min"]
+    picked = d["sppm"] * minutes
+    return CellWindow(
+        label=name, source="docs/results", attempts=d["attempts_per_min"] * minutes, successful_picks=picked,
+        items_entering=d["entered_per_min"] * minutes, window_s=60.0 * minutes, entering_kg=None, diverted_kg=None,
+        # capture: recovery = picked / (picked + lost) over items some arm had a bin for, so picked / recovery of them
+        target_items=picked / d["recovery"] if d["recovery"] > 0 else None, diverted_target_items=picked,
+        accounting="open",
+        missing={"entering_kg": NO_MASS, "diverted_kg": NO_MASS,
+                 "in_bins_kg": "the sim assumes a successful pick is pure (Daily Note Nov 11: successful means pure)"},
+    )
+
+
+def _flow_td(window: CellWindow, kpi: str, field: str, kind: str, note: str = "") -> str:
+    reading = flow(window, kpi, Period.MINUTE)
+    text, unit = flow_display(kpi, reading, Period.MINUTE)
+    base = {"attempts": round(window.attempts, 6), "window_s": window.window_s, field: round(getattr(window, field), 6)}
+    # WHY only the reasons this cell can need: 85 rows x 2 cells, and the page is already past the desktop preview's size
+    missing = {name: window.missing[name] for name in ("window_s", field) if name in window.missing}
+    if missing:
+        base["missing"] = missing
+    spec = html.escape(json.dumps({"base": base, "field": field, "kind": kind, "note": note}, separators=(",", ":")),
+                       quote=True)
+    title = html.escape(reading.why if not reading.measured else f"{text} {unit}" + (f" · {note}" if note else ""))
+    return f'<td class="num" data-kpi-flow="{spec}" title="{title}">{html.escape(text)}</td>'
+
+
+def _share_td(reading) -> str:
+    title = html.escape(reading.why if not reading.measured else reading.note)
+    css = "num" if reading.measured else "num kpi-nm"
+    return f'<td class="{css}" title="{title}">{html.escape(share_text(reading))}</td>'
+
+
+def facility_kpis_section(speed: dict, pick: dict) -> str:
+    """Zach, 2026-11-11: "you can have very high throughput but low diversion rate, than not helpful". The two
+    ladders' rungs read as facility KPIs, with the one rate switch every pick page shares (bam_cell_kpis)."""
+
+    rows = []
+    for ladder, rung_names, label in ((speed, speed["rungs"], "speed"), (pick, pick["rungs"], "pick")):
+        for world, sc in ladder["scenarios"].items():
+            first = True
+            for rung, d in sc["rungs"].items():
+                w = kpi_window(f"{world} {rung}", d)
+                rate, capture = diversion_rate(w), capture_rate(w)
+                speed_m_s = d.get("mean_speed_m_s")
+                rows.append(
+                    "<tr>"
+                    + (f'<td rowspan="{len(sc["rungs"])}">{html.escape(world)}<div class="muted">{label} ladder</div></td>'
+                       if first else "")
+                    + f"<td>{html.escape(rung)} {html.escape(rung_names[rung])}</td>"
+                    + f'<td class="num">{speed_m_s:.2f}</td>'
+                    + _flow_td(w, "throughput_items", "items_entering", "items", "items spawned onto the line")
+                    + _flow_td(w, "successful_picks", "successful_picks", "picks", "items picked into their bins")
+                    + _share_td(rate) + _share_td(capture)
+                    + f'<td class="num kpi-nm" title="{html.escape(NO_MASS)}">not measured</td>' * 2
+                    + "</tr>")
+                first = False
+    # the story in two lines, from the numbers: a busy world at v1's speed, and the same world's best gated rung
+    f_world = speed["scenarios"].get("F MRF mix", {}).get("rungs", {})
+    story = ""
+    if {"S0", "S1"} <= set(f_world):
+        fast, slow = kpi_window("F S0", f_world["S0"]), kpi_window("F S1", f_world["S1"])
+        story = (f"<p>On the MRF mix at v1's 0.3 m/s the line takes in <b>{f_world['S0']['entered_per_min']:.0f} items a "
+                 f"minute</b> and diverts <b>{share_text(diversion_rate(fast))}</b> of them; slowed to the best gated "
+                 f"constant speed ({f_world['S1']['mean_speed_m_s']:.2f} m/s) it takes in "
+                 f"{f_world['S1']['entered_per_min']:.0f} and diverts {share_text(diversion_rate(slow))}, capturing "
+                 f"{share_text(capture_rate(slow))} of the items an arm has a bin for. High throughput, low diversion.</p>")
+    head = ("<tr><th>world</th><th>rung</th><th>belt m/s</th>"
+            f'<th title="{html.escape(tooltip("throughput_items"))}">items in <span data-kpi-unit="items">/min</span></th>'
+            f'<th title="{html.escape(tooltip("successful_picks"))}">successful picks <span data-kpi-unit="picks">/min</span></th>'
+            f'<th title="{html.escape(tooltip("diversion_rate"))}">diversion rate (by count)</th>'
+            f'<th title="{html.escape(tooltip("capture_rate"))}">capture rate</th>'
+            f'<th title="{html.escape(tooltip("throughput"))}">throughput <span data-kpi-unit="mass">kg/min</span></th>'
+            f'<th title="{html.escape(tooltip("diverted"))}">diverted <span data-kpi-unit="mass">kg/min</span></th></tr>')
+    return f"""<h2 id="facility-kpis">Facility KPIs: the line as a black box</h2>
+<div class="kpi-head"><p class="muted">Items are spawned onto the belt and some are diverted into bins. Throughput is what
+goes through the belt; diversion rate is the share of it that ends in a bin; capture rate is the share of the items an arm
+has a bin for. Mean of the eval seeds over the 12 min window after the warm-up. Definitions:
+<code>src/dev/bam_cell_kpis</code>.</p><bam-rate-switch></bam-rate-switch></div>
+{story}
+<div class="wrap"><table class="kpis"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>
+<p class="muted">Diversion and capture are by count: the sim's items have no mass, so every mass column says so instead of a
+number. A ratio a window cannot state (picked more than entered, an edge effect of a running line) says so too, never
+clipped. Per pick = per pick attempt, all arms together; {ATTEMPTS_NOTE}.</p>"""
+
+
+def main(out: Path = OUT):
+    side = out.with_suffix("")  # the GIF fallbacks' folder beside the page
     speed = json.loads((RES / "speed_ladder.json").read_text())
     pick = json.loads((RES / "pick_ladder.json").read_text())
     from bam_belt_sim.viz_mpl import render_all
@@ -226,9 +341,9 @@ def main():
     n_tests = count_tests()
     rtf = realtime_factor()
 
-    SIDE.mkdir(parents=True, exist_ok=True)
+    side.mkdir(parents=True, exist_ok=True)
     for key in ("speed", "pick"):
-        (SIDE / written[key]["gif"].name).write_bytes(written[key]["gif"].read_bytes())
+        (side / written[key]["gif"].name).write_bytes(written[key]["gif"].read_bytes())
 
     B = speed["scenarios"]["B 3 arms, 6 cats"]["rungs"]
     D = speed["scenarios"]["D sparse 1/m"]["rungs"]
@@ -282,11 +397,13 @@ def main():
     def video(key, caption):
         mp4 = written[key]["mp4"]
         poster = written[key]["png"]
-        gif = SIDE.name + "/" + written[key]["gif"].name
+        gif = side.name + "/" + written[key]["gif"].name
         return (f'<figure><video controls autoplay muted loop playsinline poster="data:image/png;base64,{b64(poster)}" '
                 f'src="data:video/mp4;base64,{b64(mp4)}" style="width:100%"></video>'
                 f'<figcaption>{caption} · <a href="{gif}">GIF fallback</a></figcaption></figure>')
 
+    kpi_assets = assets_html()
+    kpis_html = facility_kpis_section(speed, pick)
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Belt sim ladders</title>
 <style>
@@ -306,7 +423,10 @@ img{{background:#fff;border-radius:4px}}
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:14px}} @media (max-width:760px){{.grid2{{grid-template-columns:1fr}}}}
 ul{{padding-left:20px}} li{{margin:3px 0}}
 details{{margin:8px 0}} summary{{cursor:pointer;color:var(--ink2)}}
-</style></head><body><main>
+.wrap{{overflow-x:auto;max-width:100%}} table.kpis td.num{{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}}
+.kpi-head{{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between}} .kpi-head p{{margin:0;max-width:640px}}
+bam-rate-switch{{--brs-accent:var(--accent);--brs-border:var(--line);--brs-muted:var(--ink2);--brs-bg:var(--bg);--brs-fg:var(--ink)}}
+</style>{kpi_assets}</head><body><main>
 <h1>Conveyor belt sim: speed control and pick scheduling</h1>
 <p class="muted">bam_belt_sim · {DATE} · from Daily Note Nov 11 2026, "Conveyor belt speed control and FIFO object scheduling"</p>
 <p class="verdict"><b>Two ladders climbed on one fast headless sim.</b> Speed (best rung at recovery ≥ 90 %, per hopper world): {winners_txt}.
@@ -325,6 +445,8 @@ Simulation only: points on a 2D belt, UR5e-class arms from the facility model.</
 <li><b>Pick ladder headline: value per minute</b>, and its share of an LP bound (no policy can beat it) and a tighter LP planning reference (see the method notes).</li>
 <li>Each rung's knobs are tuned on seeds {speed['tune_seeds']} and scored on different seeds {speed['eval_seeds']}: same items for every rung (common random numbers).</li>
 </ul>
+
+{kpis_html}
 
 <h2>Speed ladder</h2>
 <p>S0 constant 0.3 m/s (v1) → S1 best constant speed → S2 rush when idle (Zach's idea: speed up while no arm has anything pickable; brake back in time) →
@@ -390,10 +512,40 @@ S3 deadline-aware (also slow down so an item only this arm can take is still in 
 <li>Real numbers: the BAM arm's cycle and grasp success from the pick worlds, real mixes from bam-waste-objects, belt speed / grasp-success curve instead of the hard line.</li>
 </ul>
 </main></body></html>"""
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(page)
-    print(OUT, f"{OUT.stat().st_size / 1e6:.2f} MB")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page)
+    print(out, f"{out.stat().st_size / 1e6:.2f} MB")
+
+
+def kpis_only(out: Path) -> None:
+    """Only the facility-KPI section on a bare page: seconds instead of the full build's minutes (charts, videos,
+    oracle runs), for checking the section and its rate switch."""
+
+    speed = json.loads((RES / "speed_ladder.json").read_text())
+    pick = json.loads((RES / "pick_ladder.json").read_text())
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Belt sim facility KPIs</title>
+<style>
+:root{{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--line:#e4e3df;--accent:#2a78d6;--card:#f4f3f0}}
+@media (prefers-color-scheme: dark){{:root:not([data-theme=light]){{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--line:#3a3a37;--card:#232321}}}}
+body{{background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;margin:0}}
+main{{max-width:1080px;margin:0 auto;padding:28px 16px 80px}} h2{{font-size:19px;margin:0 0 8px}} .muted{{color:var(--ink2)}}
+table{{border-collapse:collapse;font-size:12.5px;width:100%;margin:8px 0}} th,td{{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}}
+th{{color:var(--ink2);font-weight:600}} code{{font-size:13px}}
+.wrap{{overflow-x:auto;max-width:100%}} table.kpis td.num{{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}}
+.kpi-head{{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between}} .kpi-head p{{margin:0;max-width:640px}}
+bam-rate-switch{{--brs-accent:var(--accent);--brs-border:var(--line);--brs-muted:var(--ink2);--brs-bg:var(--bg);--brs-fg:var(--ink)}}
+</style>{assets_html()}</head><body><main>{facility_kpis_section(speed, pick)}</main></body></html>"""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page)
+    print(out)
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--out", type=Path, default=OUT, help=f"the page (default {OUT})")
+    parser.add_argument("--kpis-only", action="store_true", help="only the facility-KPI section, in seconds")
+    args = parser.parse_args()
+    kpis_only(args.out) if args.kpis_only else main(args.out)

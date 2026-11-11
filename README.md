@@ -18,6 +18,17 @@ uv run bam-belt-sim viser --port 8091   # 3D replay (house viewer), policy dropd
 uv run pytest -q                        # invariants, F1 oracle + its mutation, LP bound
 ```
 
+The report's **Facility KPIs** section reads each ladder rung as the line seen from outside: items in and items
+picked, diversion rate (picked ÷ in) and capture rate (recovery), with the rate switch every pick-and-place page
+shares (`src/dev/bam_cell_kpis`). That is where "high throughput, low diversion" shows: the MRF mix at v1's 0.3 m/s
+takes in 91 items a minute and diverts 46 % of them. The sim's items have no mass, so the mass columns say so. To check
+only that section, in seconds:
+
+```bash
+cd ~/bam_ws/src/dev/bam_belt_sim
+uv run python docs/build_report.py --kpis-only --out /tmp/belt-sim-kpis.html
+```
+
 ## Model
 
 | Piece | What it is | Where |
