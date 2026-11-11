@@ -1,0 +1,743 @@
+{
+ "belt_speed_m_s": 0.25,
+ "duration_s": 300.0,
+ "tune_seeds": [
+  0,
+  1,
+  2
+ ],
+ "eval_seeds": [
+  100,
+  101,
+  102,
+  103,
+  104
+ ],
+ "rungs": {
+  "P0": "FIFO (v1)",
+  "P1": "shortest cycle",
+  "P2": "value rate p*v/cycle",
+  "P3": "last chance",
+  "P4": "lookahead"
+ },
+ "scenarios": {
+  "PA 3 arms, 6 equal cats": {
+   "rungs": {
+    "P0": {
+     "sppm": 50.218181818171466,
+     "value_per_min": 50.218181818171466,
+     "recovery": 0.5503438239745557,
+     "value_recovery": 0.5503438239745557,
+     "attempts_per_min": 55.41333333332496,
+     "grasp_fail_share": 0.10665804228615157,
+     "missed_intercept_share": 0.0067239423916880025,
+     "utilisation": 0.8980222222222253,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 496.0111830910638,
+     "window_value": 251.2,
+     "sppm_sd": 0.8662639454232103,
+     "recovery_sd": 0.008765494327612047,
+     "share_of_reference": 0.8687820129433399,
+     "share_of_bound": 0.5958093879470926,
+     "params": {}
+    },
+    "P1": {
+     "sppm": 52.1454545454438,
+     "value_per_min": 52.1454545454438,
+     "recovery": 0.5718444007249855,
+     "value_recovery": 0.5718444007249855,
+     "attempts_per_min": 57.253333333324676,
+     "grasp_fail_share": 0.10687836741513301,
+     "missed_intercept_share": 0.002802883978842167,
+     "utilisation": 0.8930962962962992,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 558.7578077997662,
+     "window_value": 261.2,
+     "sppm_sd": 1.4624783674317134,
+     "recovery_sd": 0.009806243967520886,
+     "share_of_reference": 0.9031768902482671,
+     "share_of_bound": 0.6193696772709265,
+     "params": {}
+    },
+    "P2": {
+     "sppm": 52.1454545454438,
+     "value_per_min": 52.1454545454438,
+     "recovery": 0.5718444007249855,
+     "value_recovery": 0.5718444007249855,
+     "attempts_per_min": 57.253333333324676,
+     "grasp_fail_share": 0.10687836741513301,
+     "missed_intercept_share": 0.002802883978842167,
+     "utilisation": 0.8930962962962992,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 385.10526098621244,
+     "window_value": 261.2,
+     "sppm_sd": 1.4624783674317134,
+     "recovery_sd": 0.009806243967520886,
+     "share_of_reference": 0.9031768902482671,
+     "share_of_bound": 0.6193696772709265,
+     "params": {}
+    },
+    "P3": {
+     "sppm": 52.1454545454438,
+     "value_per_min": 52.1454545454438,
+     "recovery": 0.5718444007249855,
+     "value_recovery": 0.5718444007249855,
+     "attempts_per_min": 57.253333333324676,
+     "grasp_fail_share": 0.10687836741513301,
+     "missed_intercept_share": 0.002802883978842167,
+     "utilisation": 0.8930962962962992,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 444.96597073656756,
+     "window_value": 261.2,
+     "sppm_sd": 1.4624783674317134,
+     "recovery_sd": 0.009806243967520886,
+     "share_of_reference": 0.9031768902482671,
+     "share_of_bound": 0.6193696772709265,
+     "params": {
+      "downstream_weight": 0.2
+     }
+    },
+    "P4": {
+     "sppm": 52.36363636362556,
+     "value_per_min": 52.36363636362556,
+     "recovery": 0.5745051557566555,
+     "value_recovery": 0.5745051557566555,
+     "attempts_per_min": 57.626666666657954,
+     "grasp_fail_share": 0.1094770219189893,
+     "missed_intercept_share": 0.0027776581992384666,
+     "utilisation": 0.8950296296296327,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 517.3079377774753,
+     "window_value": 262.2,
+     "sppm_sd": 1.2596733145952876,
+     "recovery_sd": 0.009321583844986594,
+     "share_of_reference": 0.9066978313845924,
+     "share_of_bound": 0.6217904395931184,
+     "params": {
+      "depth": 2,
+      "downstream_weight": 0.2
+     }
+    }
+   },
+   "bound": {
+    "bound": {
+     "100": 426.13199547525886,
+     "101": 431.86182989915596,
+     "102": 428.20476811817963,
+     "103": 415.54793298210666,
+     "104": 406.869118812983
+    },
+    "reference": {
+     "100": 289.6009189473898,
+     "101": 297.85638537773633,
+     "102": 292.77159465068684,
+     "103": 286.28770478739364,
+     "104": 279.49928895269164
+    }
+   },
+   "describe": {
+    "arms": 3,
+    "categories": [
+     "c0",
+     "c1",
+     "c2",
+     "c3",
+     "c4",
+     "c5"
+    ],
+    "bins": {
+     "arm1": [
+      "c0",
+      "c3"
+     ],
+     "arm2": [
+      "c1",
+      "c4"
+     ],
+     "arm3": [
+      "c2",
+      "c5"
+     ]
+    },
+    "supply": "stream",
+    "density_per_m": 4.0,
+    "rate_per_s": 1.5,
+    "burstiness": 0.0,
+    "belt_m": 6.1,
+    "segments": 1,
+    "circulating": false
+   },
+   "value_unit": "picks"
+  },
+  "PB MRF values + gold": {
+   "rungs": {
+    "P0": {
+     "sppm": 43.38181818180924,
+     "value_per_min": 0.6020181818180577,
+     "recovery": 0.6113863107977313,
+     "value_recovery": 0.506618245604703,
+     "attempts_per_min": 49.67999999999249,
+     "grasp_fail_share": 0.13354265469920648,
+     "missed_intercept_share": 0.00805377314652551,
+     "utilisation": 0.789725925925927,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 307.55960416653704,
+     "window_value": 3.0303000000000004,
+     "gold_items": 2.2,
+     "gold_picked": 0.6,
+     "sppm_sd": 1.1029637009527256,
+     "recovery_sd": 0.018698008458597575,
+     "share_of_reference": 0.5816796191951472,
+     "share_of_bound": 0.5116336490547941,
+     "params": {},
+     "gold_recovery": 0.2727272727272727,
+     "gold_items_total": 11
+    },
+    "P1": {
+     "sppm": 44.87272727271802,
+     "value_per_min": 0.658618181818046,
+     "recovery": 0.6309202914101047,
+     "value_recovery": 0.5558461389796582,
+     "attempts_per_min": 51.733333333325504,
+     "grasp_fail_share": 0.14311780499508645,
+     "missed_intercept_share": 0.002579095008694469,
+     "utilisation": 0.7888370370370378,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 272.45332653050866,
+     "window_value": 3.3379000000000003,
+     "gold_items": 2.2,
+     "gold_picked": 0.8,
+     "sppm_sd": 1.4281699553928318,
+     "recovery_sd": 0.015311386498909653,
+     "share_of_reference": 0.6441232224295543,
+     "share_of_bound": 0.5665957827011502,
+     "params": {},
+     "gold_recovery": 0.36363636363636365,
+     "gold_items_total": 11
+    },
+    "P2": {
+     "sppm": 43.963636363627295,
+     "value_per_min": 0.9572181818179845,
+     "recovery": 0.6187293022663836,
+     "value_recovery": 0.8042075119884429,
+     "attempts_per_min": 49.62666666665916,
+     "grasp_fail_share": 0.1265404426433337,
+     "missed_intercept_share": 0.0015837263542120429,
+     "utilisation": 0.7866962962962972,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 467.6818945445948,
+     "window_value": 4.9525999999999994,
+     "gold_items": 2.2,
+     "gold_picked": 2.2,
+     "sppm_sd": 1.5923370215132222,
+     "recovery_sd": 0.01580532440777276,
+     "share_of_reference": 0.9507581503375067,
+     "share_of_bound": 0.8366505329143147,
+     "params": {},
+     "gold_recovery": 1.0,
+     "gold_items_total": 11
+    },
+    "P3": {
+     "sppm": 43.963636363627295,
+     "value_per_min": 0.9572181818179845,
+     "recovery": 0.6187293022663836,
+     "value_recovery": 0.8042075119884429,
+     "attempts_per_min": 49.62666666665916,
+     "grasp_fail_share": 0.1265404426433337,
+     "missed_intercept_share": 0.0015837263542120429,
+     "utilisation": 0.7866962962962972,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 348.8776713971894,
+     "window_value": 4.9525999999999994,
+     "gold_items": 2.2,
+     "gold_picked": 2.2,
+     "sppm_sd": 1.5923370215132222,
+     "recovery_sd": 0.01580532440777276,
+     "share_of_reference": 0.9507581503375067,
+     "share_of_bound": 0.8366505329143147,
+     "params": {
+      "downstream_weight": 0.2
+     },
+     "gold_recovery": 1.0,
+     "gold_items_total": 11
+    },
+    "P4": {
+     "sppm": 44.25454545453633,
+     "value_per_min": 0.9543636363634395,
+     "recovery": 0.6231661278605587,
+     "value_recovery": 0.8023235369095859,
+     "attempts_per_min": 50.159999999992415,
+     "grasp_fail_share": 0.12944492166981145,
+     "missed_intercept_share": 0.002636467107042166,
+     "utilisation": 0.7917037037037049,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 379.3980559034943,
+     "window_value": 4.939000000000001,
+     "gold_items": 2.2,
+     "gold_picked": 2.2,
+     "sppm_sd": 1.3642422896218331,
+     "recovery_sd": 0.0146432630827227,
+     "share_of_reference": 0.9480258455958621,
+     "share_of_bound": 0.8342655849624812,
+     "params": {
+      "depth": 2,
+      "downstream_weight": 0.2
+     },
+     "gold_recovery": 1.0,
+     "gold_items_total": 11
+    }
+   },
+   "bound": {
+    "bound": {
+     "100": 6.743488344975965,
+     "101": 4.915634192107424,
+     "102": 4.829770250160675,
+     "103": 5.522018448868166,
+     "104": 7.3699985609261365
+    },
+    "reference": {
+     "100": 6.032490388828686,
+     "101": 4.160993576260209,
+     "102": 4.1138420529182955,
+     "103": 4.8822673453749825,
+     "104": 6.787459487080369
+    }
+   },
+   "describe": {
+    "arms": 3,
+    "categories": [
+     "cardboard",
+     "PET",
+     "HDPE",
+     "aluminium",
+     "film",
+     "steel",
+     "residue",
+     "gold"
+    ],
+    "bins": {
+     "arm1": [
+      "cardboard",
+      "aluminium",
+      "gold"
+     ],
+     "arm2": [
+      "PET",
+      "film"
+     ],
+     "arm3": [
+      "HDPE",
+      "steel"
+     ]
+    },
+    "supply": "stream",
+    "density_per_m": 4.0,
+    "rate_per_s": 1.5,
+    "burstiness": 0.0,
+    "belt_m": 6.1,
+    "segments": 1,
+    "circulating": false
+   },
+   "value_unit": "USD"
+  },
+  "PC overlap (2 arms/cat)": {
+   "rungs": {
+    "P0": {
+     "sppm": 51.34545454544396,
+     "value_per_min": 51.34545454544396,
+     "recovery": 0.5625026680348657,
+     "value_recovery": 0.5625026680348657,
+     "attempts_per_min": 56.95999999999138,
+     "grasp_fail_share": 0.10937957020347824,
+     "missed_intercept_share": 0.013164985716956751,
+     "utilisation": 0.9539777777777816,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 884.7471964963986,
+     "window_value": 257.4,
+     "sppm_sd": 0.5835202376682875,
+     "recovery_sd": 0.009446890336136327,
+     "share_of_reference": 0.7698568245685593,
+     "share_of_bound": 0.5661775977910011,
+     "params": {}
+    },
+    "P1": {
+     "sppm": 56.727272727261024,
+     "value_per_min": 56.727272727261024,
+     "recovery": 0.6209910024909502,
+     "value_recovery": 0.6209910024909502,
+     "attempts_per_min": 61.83999999999065,
+     "grasp_fail_share": 0.10500689057709642,
+     "missed_intercept_share": 0.0008602150537634409,
+     "utilisation": 0.9466296296296337,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 876.1338040241333,
+     "window_value": 284.2,
+     "sppm_sd": 0.962091385841471,
+     "recovery_sd": 0.010520939567250816,
+     "share_of_reference": 0.8499968403629106,
+     "share_of_bound": 0.6251443981870228,
+     "params": {}
+    },
+    "P2": {
+     "sppm": 56.727272727261024,
+     "value_per_min": 56.727272727261024,
+     "recovery": 0.6209910024909502,
+     "value_recovery": 0.6209910024909502,
+     "attempts_per_min": 61.83999999999065,
+     "grasp_fail_share": 0.10500689057709642,
+     "missed_intercept_share": 0.0008602150537634409,
+     "utilisation": 0.9466296296296337,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 828.120650289177,
+     "window_value": 284.2,
+     "sppm_sd": 0.962091385841471,
+     "recovery_sd": 0.010520939567250816,
+     "share_of_reference": 0.8499968403629106,
+     "share_of_bound": 0.6251443981870228,
+     "params": {}
+    },
+    "P3": {
+     "sppm": 56.47272727271563,
+     "value_per_min": 56.47272727271563,
+     "recovery": 0.6194209430460547,
+     "value_recovery": 0.6194209430460547,
+     "attempts_per_min": 61.866666666657316,
+     "grasp_fail_share": 0.1066410964722333,
+     "missed_intercept_share": 0.0021251139375711324,
+     "utilisation": 0.9496962962963,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 834.3015965252922,
+     "window_value": 282.2,
+     "sppm_sd": 0.8292184909810204,
+     "recovery_sd": 0.00894895517049672,
+     "share_of_reference": 0.8440397347825934,
+     "share_of_bound": 0.6207507973068284,
+     "params": {
+      "downstream_weight": 0.8
+     }
+    },
+    "P4": {
+     "sppm": 56.6909090908974,
+     "value_per_min": 56.6909090908974,
+     "recovery": 0.6217606301809332,
+     "value_recovery": 0.6217606301809332,
+     "attempts_per_min": 61.70666666665734,
+     "grasp_fail_share": 0.10064529861165712,
+     "missed_intercept_share": 0.0025857720675707832,
+     "utilisation": 0.9548296296296332,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": 0.0005430831438895123,
+     "peak_items_per_0_2m": 5.0,
+     "entered_per_min": 91.56363636361748,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 577.2664147904,
+     "window_value": 284.0,
+     "sppm_sd": 0.9908673886135203,
+     "recovery_sd": 0.0075043835499288905,
+     "share_of_reference": 0.8494409015682104,
+     "share_of_bound": 0.6246946423047068,
+     "params": {
+      "depth": 2,
+      "downstream_weight": 0.2
+     }
+    }
+   },
+   "bound": {
+    "bound": {
+     "100": 454.0,
+     "101": 467.0384272425833,
+     "102": 465.0,
+     "103": 450.0,
+     "104": 437.7297371128961
+    },
+    "reference": {
+     "100": 337.221894214206,
+     "101": 336.5074728395378,
+     "102": 338.5065557900424,
+     "103": 333.874417381866,
+     "104": 325.7074356312045
+    }
+   },
+   "describe": {
+    "arms": 3,
+    "categories": [
+     "c0",
+     "c1",
+     "c2",
+     "c3",
+     "c4",
+     "c5"
+    ],
+    "bins": {
+     "arm1": [
+      "c0",
+      "c3",
+      "c2",
+      "c5"
+     ],
+     "arm2": [
+      "c1",
+      "c4",
+      "c0",
+      "c3"
+     ],
+     "arm3": [
+      "c2",
+      "c5",
+      "c1",
+      "c4"
+     ]
+    },
+    "supply": "stream",
+    "density_per_m": 4.0,
+    "rate_per_s": 1.5,
+    "burstiness": 0.0,
+    "belt_m": 6.1,
+    "segments": 1,
+    "circulating": false
+   },
+   "value_unit": "picks"
+  },
+  "PD 1 arm, 6 bins": {
+   "rungs": {
+    "P0": {
+     "sppm": 17.236363636360082,
+     "value_per_min": 17.236363636360082,
+     "recovery": 0.35189960654414876,
+     "value_recovery": 0.35189960654414876,
+     "attempts_per_min": 19.54666666666371,
+     "grasp_fail_share": 0.10288130317581409,
+     "missed_intercept_share": 0.01924393502098724,
+     "utilisation": 0.9732222222222235,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": -0.0001971639269892102,
+     "peak_items_per_0_2m": 4.8,
+     "entered_per_min": 49.12727272726259,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 1648.7878116010957,
+     "window_value": 86.0,
+     "sppm_sd": 0.3252462512726296,
+     "recovery_sd": 0.029851590001958073,
+     "share_of_reference": 0.765780255757521,
+     "share_of_bound": 0.47056626498697457,
+     "params": {}
+    },
+    "P1": {
+     "sppm": 19.018181818177897,
+     "value_per_min": 19.018181818177897,
+     "recovery": 0.38757949547748366,
+     "value_recovery": 0.38757949547748366,
+     "attempts_per_min": 21.03999999999682,
+     "grasp_fail_share": 0.1037777312482697,
+     "missed_intercept_share": 0.0025478740668614087,
+     "utilisation": 0.97777777777778,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": -0.0001971639269892102,
+     "peak_items_per_0_2m": 4.8,
+     "entered_per_min": 49.12727272726259,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 1460.849460375628,
+     "window_value": 95.2,
+     "sppm_sd": 0.3042400096486921,
+     "recovery_sd": 0.025658212552194533,
+     "share_of_reference": 0.8473193267773438,
+     "share_of_bound": 0.5204321124856508,
+     "params": {}
+    },
+    "P2": {
+     "sppm": 19.018181818177897,
+     "value_per_min": 19.018181818177897,
+     "recovery": 0.38757949547748366,
+     "value_recovery": 0.38757949547748366,
+     "attempts_per_min": 21.03999999999682,
+     "grasp_fail_share": 0.1037777312482697,
+     "missed_intercept_share": 0.0025478740668614087,
+     "utilisation": 0.97777777777778,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": -0.0001971639269892102,
+     "peak_items_per_0_2m": 4.8,
+     "entered_per_min": 49.12727272726259,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 1626.951684527849,
+     "window_value": 95.2,
+     "sppm_sd": 0.3042400096486921,
+     "recovery_sd": 0.025658212552194533,
+     "share_of_reference": 0.8473193267773438,
+     "share_of_bound": 0.5204321124856508,
+     "params": {}
+    },
+    "P3": {
+     "sppm": 19.018181818177897,
+     "value_per_min": 19.018181818177897,
+     "recovery": 0.38757949547748366,
+     "value_recovery": 0.38757949547748366,
+     "attempts_per_min": 21.03999999999682,
+     "grasp_fail_share": 0.1037777312482697,
+     "missed_intercept_share": 0.0025478740668614087,
+     "utilisation": 0.97777777777778,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": -0.0001971639269892102,
+     "peak_items_per_0_2m": 4.8,
+     "entered_per_min": 49.12727272726259,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 1411.3247463682928,
+     "window_value": 95.2,
+     "sppm_sd": 0.3042400096486921,
+     "recovery_sd": 0.025658212552194533,
+     "share_of_reference": 0.8473193267773438,
+     "share_of_bound": 0.5204321124856508,
+     "params": {
+      "downstream_weight": 0.2
+     }
+    },
+    "P4": {
+     "sppm": 19.163636363632413,
+     "value_per_min": 19.163636363632413,
+     "recovery": 0.3903629407199206,
+     "value_recovery": 0.3903629407199206,
+     "attempts_per_min": 21.25333333333012,
+     "grasp_fail_share": 0.10731942350605976,
+     "missed_intercept_share": 0.001226993865030675,
+     "utilisation": 0.9779777777777797,
+     "mean_speed_m_s": 0.25,
+     "backlog_end": 0.0,
+     "backlog_growth_per_min": -0.0001971639269892102,
+     "peak_items_per_0_2m": 4.8,
+     "entered_per_min": 49.12727272726259,
+     "window_min": 5.500000000001134,
+     "sim_s_per_wall_s": 924.6442762836826,
+     "window_value": 96.0,
+     "sppm_sd": 0.2757409252381814,
+     "recovery_sd": 0.028228175997798453,
+     "share_of_reference": 0.854564649616451,
+     "share_of_bound": 0.524963521062675,
+     "params": {
+      "depth": 3,
+      "downstream_weight": 0.2
+     }
+    }
+   },
+   "bound": {
+    "bound": {
+     "100": 170.96469281403287,
+     "101": 187.08220414233634,
+     "102": 189.57072521411231,
+     "103": 175.9908990083171,
+     "104": 192.0697737956189
+    },
+    "reference": {
+     "100": 109.12014037559894,
+     "101": 112.60341991630641,
+     "102": 114.56210294831794,
+     "103": 110.24210197413103,
+     "104": 115.26829384038496
+    }
+   },
+   "describe": {
+    "arms": 1,
+    "categories": [
+     "c0",
+     "c1",
+     "c2",
+     "c3",
+     "c4",
+     "c5"
+    ],
+    "bins": {
+     "arm1": [
+      "c0",
+      "c1",
+      "c2",
+      "c3",
+      "c4",
+      "c5"
+     ]
+    },
+    "supply": "stream",
+    "density_per_m": 4.0,
+    "rate_per_s": 0.8,
+    "burstiness": 0.0,
+    "belt_m": 3.1,
+    "segments": 1,
+    "circulating": false
+   },
+   "value_unit": "picks"
+  }
+ },
+ "wall_s": 789.0752439498901
+}
