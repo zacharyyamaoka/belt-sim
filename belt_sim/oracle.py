@@ -15,9 +15,9 @@ from .config import ArmSpec, BeltSpec, Bin, Category, Scenario, Supply
 
 def line_sim_scenario(items_per_s, belt_speed_m_s, arms, window_m, cycle_time_s, reach_time_s, grasp_success):
     arm_specs = tuple(
-        ArmSpec(f"arm{k + 1}", (k + 0.5) * window_m, 0.3, (Bin("c0", (k + 0.5) * window_m, -0.15),),
+        ArmSpec(f"arm{k + 1}", (k + 0.5) * window_m, (Bin("c0", (k + 0.5) * window_m, -0.15),),
                 fixed_cycle_s=cycle_time_s, fixed_reach_s=reach_time_s, window_x=(k * window_m, (k + 1) * window_m),
-                v_track_max_m_s=10.0)
+                v_track_max_m_s=10.0, y_min_m=-1e9, y_max_m=1e9)
         for k in range(arms)
     )
     belt = BeltSpec(length_m=arms * window_m, v_max_m_s=belt_speed_m_s, v_min_m_s=0.0, accel_m_s2=1e9)

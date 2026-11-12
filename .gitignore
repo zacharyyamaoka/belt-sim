@@ -3,4 +3,6 @@ __pycache__/
 .venv/
 *.rrd
 wandb/
-site/
+_site/
+docs/results/ladder.log
+wandb_runs/
