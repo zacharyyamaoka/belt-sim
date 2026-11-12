@@ -1,16 +1,18 @@
-"""The world a ladder rung runs in: belt, segments, arms with their bins, the item mix and how it is fed.
+"""The world a ladder rung runs in: belt, segments, gantry arms with their bins, the item mix and how it is fed.
 
 Everything here is a frozen dataclass so a scenario is one value that can be hashed, printed and diffed. Units are SI
-(m, s, m/s); the report converts at the display edge.
+(m, s, m/s); reports convert at the display edge.
 
-WHY these simplifications (Daily Note, Nov 11 2026, "Conveyor belt speed control and FIFO object scheduling"):
+WHY these simplifications (the design note this package answers: "conveyor belt speed control and FIFO object
+scheduling"):
 
 * Items are points on a flat 2D belt (x along, y across). No stacking, no tumbling: the question is who can reach
-  what, when, not contact physics (bam_pick_worlds owns that).
-* "If an arm can pick an item it can place it": an arm can pick a category only if one of its bins holds it.
-* Grasp success is a per-item probability the scheduler knows, and a hard belt-speed line above which the arm does
-  not try at all. Zach: "there is likely quite a sharp line there, so probably simpler to just model as a max belt
-  speed the arms can handle".
+  what, when, not contact physics.
+* If an arm can pick an item it can place it: an arm may pick a category only if one of its bins holds it.
+* Grasp success is a per-item probability the scheduler knows, plus a hard belt-speed line above which the arm does
+  not try at all ("there is likely quite a sharp line there, so model it as a max belt speed the arms can handle").
+* The arm is a Cartesian gantry: an x carriage riding along the belt and a y carriage across it, each with its own
+  max speed and acceleration and a trapezoidal velocity profile. A move takes as long as its slower axis.
 """
 
 from __future__ import annotations
@@ -37,25 +39,34 @@ class Bin:
 
 @dataclass(frozen=True, slots=True)
 class ArmSpec:
-    """One pick arm. Reach is a disc of ``reach_m`` around the base (x, y) at belt height.
+    """One Cartesian (gantry) pick arm centred at ``x`` along the belt.
+
+    Workspace: x in [x - stroke_x_m/2, x + stroke_x_m/2], y in [y_min_m, y_max_m] (the whole belt width plus the bins
+    on both edges). The gripper drops (z) to grasp; that plunge, close and lift is the grasp dwell.
 
     Two timing models:
 
-    * travel (default): trapezoidal point-to-point moves at ``tool_speed_m_s`` / ``tool_accel_m_s2``, plus a grasp
-      dwell and a release dwell. The tool intercepts a moving item (it tracks it during the grasp dwell).
+    * gantry (default): the x and y axes move at once, each on a trapezoidal profile (``vx_max`` / ``ax_max``,
+      ``vy_max`` / ``ay_max``); a move lasts as long as the slower axis. The tool intercepts a moving item and tracks
+      it through the grasp dwell.
     * fixed (``fixed_cycle_s`` set): every attempt takes ``fixed_reach_s`` from commit to contact and the arm is
-      busy for ``fixed_cycle_s``. It reproduces the facility model's F1 line_sim, which tests use as the oracle.
+      busy for ``fixed_cycle_s``. It reproduces the event-driven reference sim (tests/oracle_line_sim.py).
     """
 
     name: str
     x: float
-    y: float
     bins: tuple[Bin, ...]
-    reach_m: float = 0.55
-    tool_speed_m_s: float = 0.8  # facility model UR5e (scenarios.py): 0.8 m/s, URScript default accel 1.2 m/s^2
-    tool_accel_m_s2: float = 1.2
-    grasp_dwell_s: float = 0.30
-    release_dwell_s: float = 0.20
+    stroke_x_m: float = 1.0
+    y_min_m: float = -0.3
+    y_max_m: float = 0.9
+    # WHY these defaults (assumed, not a datasheet): a belt-driven pick gantry - 1.5 m/s and 6 m/s^2 per axis puts a
+    # 0.4 m move at ~0.5 s and the arm near 35-45 picks/min, the range gantry/delta sorters are sold at.
+    vx_max: float = 1.5
+    ax_max: float = 6.0
+    vy_max: float = 1.5
+    ay_max: float = 6.0
+    grasp_dwell_s: float = 0.35  # z plunge, close, lift
+    release_dwell_s: float = 0.15
     v_track_max_m_s: float = 0.5  # belt speed above which the arm cannot grasp (hard line)
     # WHY a re-plan budget: the tool tracks its item (visual servoing). If the belt changed speed after the arm
     # committed, it re-aims from where it is rather than giving up; it gives up when the item leaves its reach or
@@ -65,12 +76,18 @@ class ArmSpec:
     contact_tol_m: float = 0.06
     fixed_cycle_s: float | None = None
     fixed_reach_s: float | None = None
-    # Optional rectangular window along x instead of the reach disc (fixed model / oracle only).
+    # Optional x window overriding the stroke (fixed model / oracle only).
     window_x: tuple[float, float] | None = None
 
     @property
     def categories(self) -> frozenset[str]:
         return frozenset(b.category for b in self.bins)
+
+    @property
+    def x_range(self) -> tuple[float, float]:
+        if self.window_x is not None:
+            return self.window_x
+        return (self.x - self.stroke_x_m / 2, self.x + self.stroke_x_m / 2)
 
     def bin_for(self, category: str) -> Bin:
         for b in self.bins:
@@ -78,12 +95,19 @@ class ArmSpec:
                 return b
         raise KeyError(category)
 
-    def travel_s(self, distance_m: float) -> float:
-        return travel_time(distance_m, self.tool_speed_m_s, self.tool_accel_m_s2)
+    def move_time(self, dx, dy):
+        """Time for a point-to-point move: both axes at once, each trapezoidal; floats or numpy arrays."""
+        tx = travel_time(dx, self.vx_max, self.ax_max)
+        ty = travel_time(dy, self.vy_max, self.ay_max)
+        if isinstance(tx, float) and isinstance(ty, float):
+            return max(tx, ty)
+        import numpy as np
+
+        return np.maximum(tx, ty)
 
 
 def travel_time(distance_m, speed, accel):
-    """Trapezoidal (or triangular) point-to-point move time; works on floats and numpy arrays."""
+    """Trapezoidal (or triangular) single-axis move time from rest to rest; floats and numpy arrays."""
     if isinstance(distance_m, float | int):
         d = abs(distance_m)
         if d >= speed * speed / accel:
@@ -99,6 +123,31 @@ def travel_time(distance_m, speed, accel):
     return float(out) if np.ndim(out) == 0 else out
 
 
+def trapezoid_position(d: float, t: float, speed: float, accel: float) -> float:
+    """Distance covered after t seconds of a rest-to-rest trapezoidal move of length |d| (signed like d)."""
+    sign = 1.0 if d >= 0 else -1.0
+    d = abs(d)
+    if d <= 0.0 or t <= 0.0:
+        return 0.0
+    t_total = travel_time(d, speed, accel)
+    if t >= t_total:
+        return sign * d
+    if d >= speed * speed / accel:
+        t_acc = speed / accel
+        v_peak = speed
+    else:
+        t_acc = math.sqrt(d / accel)
+        v_peak = accel * t_acc
+    if t < t_acc:
+        s = 0.5 * accel * t * t
+    elif t < t_total - t_acc:
+        s = 0.5 * accel * t_acc * t_acc + v_peak * (t - t_acc)
+    else:
+        tr = t_total - t
+        s = d - 0.5 * accel * tr * tr
+    return sign * s
+
+
 @dataclass(frozen=True, slots=True)
 class BeltSpec:
     length_m: float
@@ -108,7 +157,8 @@ class BeltSpec:
     v_max_m_s: float = 1.0
     v_min_m_s: float = -0.3  # negative = the belt can run backwards
     accel_m_s2: float = 1.0
-    circulating: bool = False  # items leaving the end go back to the head (Zach: "they can just teleport back")
+    circulating: bool = False  # items leaving the end go back to the head ("they can just teleport back")
+    # WHY only targetable items loop: residue nobody may pick would otherwise circle forever and fill the belt.
     max_passes: int = 3
     loop_delay_s: float = 4.0
 
@@ -169,7 +219,7 @@ class Scenario:
                 cycle = arm.fixed_cycle_s
             else:
                 d_bin = min(_bin_to_belt_m(b, self.belt.width_m) for b in arm.bins)
-                cycle = arm.grasp_dwell_s + arm.release_dwell_s + 2.0 * arm.travel_s(max(d_bin, 1e-3))
+                cycle = arm.grasp_dwell_s + arm.release_dwell_s + 2.0 * arm.move_time(0.0, max(d_bin, 1e-3))
             p = max(c.p_grasp for c in self.categories if c.name in arm.categories)
             total += 60.0 * p / cycle
         return total
@@ -181,12 +231,6 @@ def _bin_to_belt_m(b: Bin, width: float) -> float:
     return min(abs(b.y), abs(b.y - width))
 
 
-def reach_chord_m(arm: ArmSpec, y: float) -> float:
-    """Half-length of the reach disc's chord at belt lateral position y (0 if out of reach)."""
-    dy = y - arm.y
-    return math.sqrt(max(arm.reach_m**2 - dy * dy, 0.0))
-
-
 __all__ = [
     "ArmSpec",
     "BeltSpec",
@@ -194,7 +238,7 @@ __all__ = [
     "Category",
     "Scenario",
     "Supply",
-    "reach_chord_m",
+    "trapezoid_position",
     "travel_time",
 ]
 

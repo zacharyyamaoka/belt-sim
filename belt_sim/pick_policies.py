@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from .config import travel_time
 from .engine import Candidates, Sim
 
 
@@ -88,7 +87,6 @@ class Lookahead:
         pc = sim.cat[pool]
         pev = sim.p[pool] * sim.value[pool] * self.base.weights(sim, arm, pool)
         bins = sim.arm_bins[arm]
-        vt, at = spec.tool_speed_m_s, spec.tool_accel_m_s2
         fixed = spec.fixed_cycle_s is not None
         id_to_pool = {int(i): j for j, i in enumerate(pool)}
         mean_cycle = float(np.mean(cand.cycle))
@@ -106,9 +104,9 @@ class Lookahead:
             if fixed:
                 tau = np.full(pool.size, spec.fixed_reach_s)
             else:
-                tau = travel_time(np.hypot(xs - pos[0], py - pos[1]), vt, at)
+                tau = spec.move_time(xs - pos[0], py - pos[1])
                 for _ in range(3):
-                    tau = travel_time(np.hypot(xs + pu * tau - pos[0], py - pos[1]), vt, at)
+                    tau = spec.move_time(xs + pu * tau - pos[0], py - pos[1])
             cx = xs + pu * tau
             ok = mask & sim.in_reach(arm, cx, py) & (np.abs(pu) <= spec.v_track_max_m_s)
             if not ok.any():
@@ -118,8 +116,8 @@ class Lookahead:
                 cyc = np.full(j_ok.size, spec.fixed_cycle_s)
             else:
                 b = bins[pc[j_ok]]
-                cyc = tau[j_ok] + spec.grasp_dwell_s + travel_time(np.hypot(b[:, 0] - cx[j_ok], b[:, 1] - py[j_ok]),
-                                                                   vt, at) + spec.release_dwell_s
+                cyc = tau[j_ok] + spec.grasp_dwell_s + spec.move_time(b[:, 0] - cx[j_ok], b[:, 1] - py[j_ok]) \
+                    + spec.release_dwell_s
             best = j_ok[np.argsort(-(pev[j_ok] / cyc))[:3]]
             best_val, best_t = 0.0, mean_cycle
             best_rate = -1.0

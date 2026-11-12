@@ -1,4 +1,4 @@
-# bam_belt_sim
+# belt_sim
 
 Headless, fast 2D sim of a conveyor line with N pick arms, for two questions from the Daily Note of Nov 11 2026
 ("Conveyor belt speed control and FIFO object scheduling"):
@@ -11,10 +11,10 @@ Headless, fast 2D sim of a conveyor line with N pick arms, for two questions fro
 Both run on one engine; the two ladders are two policy axes over the same world, so each rung changes one thing.
 
 ```bash
-cd ~/bam_ws/src/dev/bam_belt_sim
-uv run bam-belt-sim ladder all          # tune on seeds 0-2, score on 100-104 -> docs/results/*.json
+cd ~/bam_ws/src/dev/belt_sim
+uv run belt-sim ladder all          # tune on seeds 0-2, score on 100-104 -> docs/results/*.json
 uv run python docs/build_report.py      # charts, replays, report -> ~/bam_ws/reports/media/belt-sim-<date>.html
-uv run bam-belt-sim viser --port 8091   # 3D replay (house viewer), policy dropdown
+uv run belt-sim viser --port 8091   # 3D replay (house viewer), policy dropdown
 uv run pytest -q                        # invariants, F1 oracle + its mutation, LP bound
 ```
 
@@ -25,7 +25,7 @@ takes in 91 items a minute and diverts 46 % of them. The sim's items have no mas
 only that section, in seconds:
 
 ```bash
-cd ~/bam_ws/src/dev/bam_belt_sim
+cd ~/bam_ws/src/dev/belt_sim
 uv run python docs/build_report.py --kpis-only --out /tmp/belt-sim-kpis.html
 ```
 

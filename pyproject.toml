@@ -3,36 +3,33 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bam-belt-sim"
-version = "0.1.0"
-description = "Headless, fast 2D sim of a conveyor line with N pick arms: belt speed control (constant -> rush-when-idle -> deadline-aware -> segmented belts, with recirculation) and pick scheduling (FIFO -> shortest-cycle -> value-rate -> last-chance -> lookahead), scored in successful picks/min and value/min against an LP upper bound. matplotlib 2D and Viser 3D replays."
+name = "belt-sim"
+version = "0.2.0"
+description = "Fast headless 2D sim of a conveyor line with Cartesian pick gantries: belt speed control and pick scheduling ladders, scored in successful picks/min and value/min against an LP bound. Rerun replays, W&B ladders, matplotlib and Viser previews."
 readme = "README.md"
 requires-python = ">=3.11"
-# WHY numpy only at runtime: the sim is the fast headless rung; it must run in a ladder sweep of thousands of
-# episodes. The LP bound (scipy/HiGHS) and the two viewers are extras so the core stays importable anywhere.
+license = { text = "MIT" }
+# WHY numpy only at runtime: the sim is the fast headless rung; it must run thousands of episodes in a ladder sweep.
+# The LP bound, the viewers and the trackers are extras so the core imports anywhere.
 dependencies = ["numpy>=1.26"]
 
 [project.optional-dependencies]
 bound = ["scipy>=1.12"]
 viz = ["matplotlib>=3.8", "imageio[ffmpeg]>=2.34"]
-# WHY the house viewer, not raw viser: no logo, Fusion ViewCube, asserted port and Playback come with it.
-viser = ["viser-3d-viewer"]
-test = ["pytest>=8", "scipy>=1.12"]
+viser = ["viser==1.1.1"]
+rerun = ["rerun-sdk>=0.22"]
+wandb = ["wandb>=0.18"]
+all = ["belt-sim[bound,viz,viser,rerun,wandb]"]
 
 [project.scripts]
-bam-belt-sim = "bam_belt_sim.__main__:main"
-
-[tool.uv.sources]
-# WHY: the facility model's F1 line_sim is the independent oracle for the constant-speed case (tests/test_oracle.py).
-bam-facility-model = { path = "../bam_facility_model", editable = true }
-# WHY through src/external (bam_fivebar's pattern): viser-3d-viewer is its own repo, linked into src/external.
-viser-3d-viewer = { path = "../../external/viser_3d_viewer", editable = true }
+belt-sim = "belt_sim.__main__:main"
 
 [dependency-groups]
-dev = ["bam-facility-model", "pytest>=8", "scipy>=1.12", "matplotlib>=3.8", "imageio[ffmpeg]>=2.34", "viser-3d-viewer"]
+dev = ["pytest>=8", "scipy>=1.12", "matplotlib>=3.8", "imageio[ffmpeg]>=2.34", "viser==1.1.1", "rerun-sdk>=0.22",
+       "wandb>=0.18", "pillow>=10"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["bam_belt_sim"]
+packages = ["belt_sim"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

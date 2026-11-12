@@ -3,13 +3,13 @@
 import statistics
 
 import pytest
-from bam_facility_model.line_sim import simulate_line
+from oracle_line_sim import simulate_line
 
-from bam_belt_sim import pick_policies as P
-from bam_belt_sim import speed_policies as S
-from bam_belt_sim.engine import Sim
-from bam_belt_sim.metrics import summarize
-from bam_belt_sim.oracle import line_sim_scenario
+from belt_sim import pick_policies as P
+from belt_sim import speed_policies as S
+from belt_sim.engine import Sim
+from belt_sim.metrics import summarize
+from belt_sim.oracle import line_sim_scenario
 
 CASES = [
     # items/s, belt m/s, arms, window m, cycle s, reach s, grasp success  (from F1's own fluid-bound test cases + 2)

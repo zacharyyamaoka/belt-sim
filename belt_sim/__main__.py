@@ -1,9 +1,9 @@
-"""bam-belt-sim: climb the ladders, render the 2D replay, serve the 3D replay.
+"""belt-sim: climb the ladders, render the 2D replay, serve the 3D replay.
 
-    cd ~/bam_ws/src/dev/bam_belt_sim
-    uv run bam-belt-sim ladder all          # both ladders -> docs/results/*.json
-    uv run bam-belt-sim replay              # matplotlib MP4/GIF + PNG stills -> docs/media
-    uv run bam-belt-sim viser --port 8091   # live 3D replay in the browser
+    cd ~/bam_ws/src/dev/belt_sim
+    uv run belt-sim ladder all          # both ladders -> docs/results/*.json
+    uv run belt-sim replay              # matplotlib MP4/GIF + PNG stills -> docs/media
+    uv run belt-sim viser --port 8091   # live 3D replay in the browser
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ RESULTS = PKG / "docs" / "results"
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser(prog="bam-belt-sim")
+    ap = argparse.ArgumentParser(prog="belt-sim")
     sub = ap.add_subparsers(dest="cmd", required=True)
     lp = sub.add_parser("ladder")
     lp.add_argument("which", choices=["speed", "pick", "all"])
@@ -42,7 +42,8 @@ def main(argv=None) -> None:
             ladder.save(out, RESULTS / "speed_ladder.json")
         if a.which in ("pick", "all"):
             t0 = time.time()
-            out = ladder.climb_pick(list(SC.pick_benchmark()), duration=pick_s, workers=a.workers)
+            names = list(SC.pick_benchmark()) + list(SC.pick_loop_benchmark())
+            out = ladder.climb_pick(names, duration=pick_s, workers=a.workers)
             out["wall_s"] = time.time() - t0
             ladder.save(out, RESULTS / "pick_ladder.json")
     elif a.cmd == "replay":

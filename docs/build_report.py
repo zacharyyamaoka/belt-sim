@@ -1,6 +1,6 @@
 """Build the review report from docs/results/*.json + docs/media/* into the main checkout's reports/media/.
 
-    cd ~/bam_ws/src/dev/bam_belt_sim
+    cd ~/bam_ws/src/dev/belt_sim
     uv run python docs/build_report.py
 
 Charts are matplotlib PNGs (palette: the dataviz skill's validated categorical order, slots 1-5 for rungs S0-S4 /
@@ -26,11 +26,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 PKG = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PKG))
-from bam_belt_sim import pick_policies as P  # noqa: E402
-from bam_belt_sim import scenarios as SC  # noqa: E402
-from bam_belt_sim import speed_policies as S  # noqa: E402
-from bam_belt_sim.engine import Sim  # noqa: E402
-from bam_belt_sim.metrics import summarize  # noqa: E402
+from belt_sim import pick_policies as P  # noqa: E402
+from belt_sim import scenarios as SC  # noqa: E402
+from belt_sim import speed_policies as S  # noqa: E402
+from belt_sim.engine import Sim  # noqa: E402
+from belt_sim.metrics import summarize  # noqa: E402
 
 # WHY a path import: bam_cell_kpis is the stdlib sibling every pick-and-place page shares (src/dev/bam_cell_kpis)
 sys.path.insert(0, str(PKG.parent / "bam_cell_kpis"))
@@ -158,7 +158,7 @@ def pick_plot(pick: dict, out: Path):
 def oracle_rows(seeds=4, duration=900.0):
     from bam_facility_model.line_sim import simulate_line
 
-    from bam_belt_sim.oracle import line_sim_scenario
+    from belt_sim.oracle import line_sim_scenario
 
     sys.path.insert(0, str(PKG / "tests"))
     from test_oracle import CASES
@@ -323,7 +323,7 @@ def main(out: Path = OUT):
     side = out.with_suffix("")  # the GIF fallbacks' folder beside the page
     speed = json.loads((RES / "speed_ladder.json").read_text())
     pick = json.loads((RES / "pick_ladder.json").read_text())
-    from bam_belt_sim.viz_mpl import render_all
+    from belt_sim.viz_mpl import render_all
 
     MEDIA.mkdir(parents=True, exist_ok=True)
     written = render_all(MEDIA)
@@ -428,7 +428,7 @@ details{{margin:8px 0}} summary{{cursor:pointer;color:var(--ink2)}}
 bam-rate-switch{{--brs-accent:var(--accent);--brs-border:var(--line);--brs-muted:var(--ink2);--brs-bg:var(--bg);--brs-fg:var(--ink)}}
 </style>{kpi_assets}</head><body><main>
 <h1>Conveyor belt sim: speed control and pick scheduling</h1>
-<p class="muted">bam_belt_sim · {DATE} · from Daily Note Nov 11 2026, "Conveyor belt speed control and FIFO object scheduling"</p>
+<p class="muted">belt_sim · {DATE} · from Daily Note Nov 11 2026, "Conveyor belt speed control and FIFO object scheduling"</p>
 <p class="verdict"><b>Two ladders climbed on one fast headless sim.</b> Speed (best rung at recovery ≥ 90 %, per hopper world): {winners_txt}.
 One belt per arm (S4) is the biggest single step where it wins: {s4_txt}; on world B it keeps {100 * B['S4']['sppm'] / B['S0']['sppm']:.0f} % of v1's picks/min at
 {100 * B['S4']['recovery']:.0f} % recovery instead of {100 * B['S0']['recovery']:.0f} %. It is not universal: {s4_not_txt}.
@@ -487,7 +487,7 @@ S3 deadline-aware (also slow down so an item only this arm can take is still in 
 <ul>
 <li><b>Headless engine</b> (<code>engine.py</code>, numpy only): fixed 50 ms step, belt of N segments with independent speeds (forward or reverse, accel-limited), hopper or stream infeed with min spacing, optional recirculation; arms with a reach disc, bins per category, trapezoidal tool moves (UR5e: 0.8 m/s, 1.2 m/s², grasp 0.3 s, release 0.2 s), moving-target intercept with re-planning, per-item grasp probability, and a hard belt-speed line (0.5 m/s) above which an arm does not try.</li>
 <li><b>Speed:</b> {', '.join(f'{k} ≈ {v:.0f}× real time' for k, v in rtf.items())} for a 3-arm line on this machine while it was loaded by other jobs (one core each). The full two-ladder sweep (≈ 3,000 episodes) took {speed.get('wall_s', 0) / 60:.0f} + {pick.get('wall_s', 0) / 60:.0f} min on 18 workers.</li>
-<li><b>Views:</b> matplotlib 2D replays (the videos above) and a Viser 3D replay on the house viewer (policy dropdown, playback, ViewCube): <code>bam-belt-sim viser</code>.</li>
+<li><b>Views:</b> matplotlib 2D replays (the videos above) and a Viser 3D replay on the house viewer (policy dropdown, playback, ViewCube): <code>belt-sim viser</code>.</li>
 </ul>
 <h3>Independent oracle: the facility model's F1 line_sim</h3>
 <p>At constant speed the facility model already had an event-driven line sim. Restated in this engine (same windows, fixed cycle, most-downstream rule, Poisson stream) recovery must agree; a test that lengthens our cycle by 15 % must fail that comparison (it does).</p>

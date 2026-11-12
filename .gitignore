@@ -1,2 +1,6 @@
 docs/media/
 __pycache__/
+.venv/
+*.rrd
+wandb/
+site/

@@ -3,11 +3,11 @@
 import numpy as np
 import pytest
 
-from bam_belt_sim import pick_policies as P
-from bam_belt_sim import scenarios as SC
-from bam_belt_sim import speed_policies as S
-from bam_belt_sim.engine import HELD, LOST, ON_BELT, PICKED, QUEUED, Sim
-from bam_belt_sim.metrics import summarize
+from belt_sim import pick_policies as P
+from belt_sim import scenarios as SC
+from belt_sim import speed_policies as S
+from belt_sim.engine import HELD, LOST, ON_BELT, PICKED, QUEUED, Sim
+from belt_sim.metrics import summarize
 
 
 def _b():
@@ -35,7 +35,7 @@ def test_common_random_numbers_same_items_for_every_policy():
     assert np.array_equal(a.stream.draws[:n], b.stream.draws[:n])
 
 
-@pytest.mark.parametrize("name", ["A 1 arm, 2 cats", "B 3 arms, 6 cats", "D sparse 1/m"])
+@pytest.mark.parametrize("name", ["A 1 arm, 2 cats", "B 3 arms, 6 cats", "D sparse 2.5/m"])
 def test_no_policy_beats_the_capacity_ceiling(name):
     sc = SC.speed_benchmark()[name]
     for pol in (S.Constant(0.5), S.Segmented(S.DeadlineAware(0.3))):
@@ -70,10 +70,10 @@ def test_hopper_feeds_density_per_metre_of_belt_travel():
 
 
 def test_stream_feeds_its_rate_whatever_the_belt_speed():
-    sc = SC.speed_benchmark()["G stream 0.9/s"]
+    sc = SC.speed_benchmark()["G stream 2/s"]
     for v in (0.1, 0.4):
         sim = Sim(sc, S.Constant(v), P.FIFO(), seed=0).run(600)
-        assert sim.entries / 600 == pytest.approx(0.9, rel=0.1)
+        assert sim.entries / 600 == pytest.approx(2.0, rel=0.1)
 
 
 def test_a_stopped_downstream_belt_holds_items_at_the_handoff():
@@ -121,7 +121,7 @@ def test_transfer_spacing_never_packs_tighter_than_min_gap_downstream():
 
 def test_recirculation_gives_second_chances():
     base = SC.speed_benchmark()["B 3 arms, 6 cats"]
-    circ = SC.circulation_benchmark()["B 3 arms, 6 cats + recirc"]
+    circ = SC.circulation_benchmark()["B 3 arms, 6 cats · loop"]
     a = summarize(Sim(base, S.Constant(0.3), P.FIFO(), seed=0).run(400), 60)
     b = summarize(Sim(circ, S.Constant(0.3), P.FIFO(), seed=0).run(400), 60)
     assert b.recovery > a.recovery + 0.15
@@ -137,3 +137,15 @@ def test_value_rate_takes_the_gold_fifo_lets_pass():
         gold = np.nonzero(sim.cat[:n] == g)[0]
         got[pol.name] = (sum(1 for p in sim.log.picks if p[4] == g), gold.size)
     assert got["P2 value rate"][0] > got["P0 FIFO"][0]
+
+
+@pytest.mark.parametrize("pol", [S.DeadlineAware(0.2, v_floor=0.0, protect_n=1),
+                                 S.Segmented(S.DeadlineAware(0.2, v_floor=0.0, protect_n=2))], ids=["S3", "S4"])
+def test_no_policy_stalls_the_line(pol):
+    """Regression: with a 0 m/s floor, S4 once held a belt still forever for an item too close to its arm's stroke
+    end to grasp, and the line picked nothing after 30 s."""
+    sim = Sim(_b(), pol, P.FIFO(), seed=100)
+    for _ in range(8):
+        before = len(sim.log.picks)
+        sim.run(25)
+        assert len(sim.log.picks) > before

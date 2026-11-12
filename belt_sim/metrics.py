@@ -1,6 +1,6 @@
 """What a run scores. Everything is counted after the warm-up so the empty-belt start does not flatter a policy.
 
-* ``sppm``: successful picks per minute, the line's headline (Daily Note Nov 11: "Successful picks per minute ...
+* ``sppm``: successful picks per minute, the line's headline ("successful picks per minute ...
   at a single top-level KPI we can assume successful means pure as well").
 * ``value_per_min``: the same, weighted by each item's value (the scheduling ladder's headline: "maximize value
   extracted"; with all values 1 it equals SPPM).
@@ -35,6 +35,7 @@ class RunMetrics:
     peak_items_per_0_2m: int
     entered_per_min: float
     window_min: float
+    passes_per_pick: float = 0.0  # recirculating belts: laps an item made before it was picked (0 = first pass)
     sim_s_per_wall_s: float = 0.0
 
     def as_dict(self) -> dict:
@@ -78,5 +79,6 @@ def summarize(sim: Sim, warmup_s: float, wall_s: float = 0.0) -> RunMetrics:
         peak_items_per_0_2m=sim.log.peak_pile,
         entered_per_min=entered / minutes,
         window_min=minutes,
+        passes_per_pick=(sum(p[5] for p in picks) / len(picks)) if picks and len(picks[0]) > 5 else 0.0,
         sim_s_per_wall_s=(t_end / wall_s) if wall_s > 0 else 0.0,
     )

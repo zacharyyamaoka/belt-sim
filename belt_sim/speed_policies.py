@@ -2,14 +2,14 @@
 
 S0 constant (v1, the daily note's "just arbitrary constant speed"): 0.3 m/s whatever happens.
 S1 best constant: the same policy, its speed tuned per scenario on tuning seeds (the honest open-loop baseline).
-S2 rush when idle (Zach: "if none of the arms have anything in their view they can pick up then it should accelerate
-   until at least one has one"): cruise while any arm has a pickable item in reach, otherwise run up to ``v_rush``,
+S2 rush when idle (the design note: "if none of the arms have anything in their view they can pick up then it
+   should accelerate until at least one has one"): cruise while any arm has a pickable item in reach, otherwise run up to ``v_rush``,
    but never faster than lets the belt brake back to cruise before the next pickable item reaches an arm.
 S3 deadline-aware: S2, plus slow down so the next ``protect_n`` items that only this arm can still take (no
    downstream arm has their bin) stay in reach until the arm gets to them, never below ``v_floor``. Items worth
    ``hv_value`` or more are protected down to ``v_min`` of the belt (it may stop or back up: the gold nugget).
-S4 segmented: one belt per arm, each running S3 on its own arms (Zach: "a row of N conveyor belts with independent
-   speed control"). Needs a scenario whose belt has segment boundaries.
+S4 segmented: one belt per arm, each running S3 on its own arms ("a row of N conveyor belts with independent speed
+   control"). Needs a scenario whose belt has segment boundaries.
 
 All speeds are commands; the engine rate-limits them by the belt's acceleration.
 """
@@ -36,8 +36,10 @@ def _reach_entry_exit(sim: Sim, k: int, y: np.ndarray) -> tuple[np.ndarray, np.n
     spec = sim.sc.arms[k]
     if spec.window_x is not None:
         return np.full(y.shape, spec.window_x[0]), np.full(y.shape, spec.window_x[1])
-    half = np.sqrt(np.maximum(spec.reach_m**2 - (y - spec.y) ** 2, 0.0))
-    return spec.x - half, spec.x + half
+    lo, hi = spec.x_range
+    inside = (y >= spec.y_min_m) & (y <= spec.y_max_m)
+    # an item the gantry cannot reach across gets an empty window (entry == exit)
+    return np.where(inside, lo, hi), np.full(y.shape, hi)
 
 
 def _arm_view(sim: Sim, k: int):
@@ -124,13 +126,20 @@ class DeadlineAware(RushWhenIdle):
             order = np.argsort(to_exit)[: self.protect_n]
             t_free = sim.time_until_free(k)
             pos = sim.free_position(k)
-            base_cycle = spec.fixed_cycle_s or (spec.grasp_dwell_s + spec.release_dwell_s + 2 * spec.travel_s(0.4))
+            base_cycle = spec.fixed_cycle_s or (spec.grasp_dwell_s + spec.release_dwell_s + 2 * spec.move_time(0.2, 0.4))
             for rank, j in enumerate(order):
                 i = int(ids[j])
-                reach_s = spec.fixed_reach_s if spec.fixed_reach_s is not None else spec.travel_s(
-                    float(math.hypot(sim.x[i] - pos[0], sim.y[i] - pos[1])))
+                reach_s = spec.fixed_reach_s if spec.fixed_reach_s is not None else spec.move_time(
+                    float(sim.x[i] - pos[0]), float(sim.y[i] - pos[1]))
                 t_need = t_free + rank * base_cycle + reach_s + 0.1
-                v_save = (float(to_exit[j]) - 0.02) / t_need
+                # WHY the dwell terms: the grasp must also END inside the stroke, and the engine allows for the belt
+                # accelerating while the gripper closes. Without them a 0 m/s floor held the belt still forever for
+                # an item already too close to the exit to grasp (test_no_policy_stalls_the_line).
+                dwell = 0.0 if spec.fixed_cycle_s is not None else spec.grasp_dwell_s
+                room = float(to_exit[j]) - 0.02 - 0.5 * sim.sc.belt.accel_m_s2 * dwell * dwell
+                if room <= 0.0 and not hv[j]:
+                    continue  # it cannot be saved by holding the belt: do not hold for it
+                v_save = room / (t_need + dwell)
                 lo = v_min if hv[j] else floor
                 cap = min(cap, max(v_save, lo))
         return cap

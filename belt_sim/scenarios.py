@@ -1,10 +1,10 @@
 """Named worlds for the two ladders. Each varies one thing from its neighbour where it can.
 
-The daily note's axes: number of items and their arrival pattern (density, burstiness, stream vs hopper), number of
-arms, categories per arm (bins it can reach), bin placement, values, and whether the line recirculates.
+The axes: number of items and their arrival pattern (density, burstiness, stream vs hopper), number of arms,
+categories per arm (bins it can reach: up to 6 per gantry), bin placement, values, and whether the line recirculates.
 
-Arm numbers are the facility model's UR5e (bam_facility_model/scenarios.py: 0.8 m/s, 1.2 m/s^2 default URScript
-accel, grasp success 0.9, ~1 m window from 850 mm reach), so the picks/min land in the 10-20 cobots manage in MRFs.
+Arms are Cartesian gantries (config.ArmSpec defaults: 1.5 m/s and 6 m/s^2 per axis, 1.0 m stroke along the belt,
+grasp p 0.9), about 35 successful picks/min each. Supplies are set so arms are the bottleneck at v1's 0.3 m/s.
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from .config import ArmSpec, BeltSpec, Bin, Category, Scenario, Supply
 PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#17becf", "#bcbd22",
            "#7f7f7f"]
 
-HEAD_M, PITCH_M, TAIL_M, WIDTH_M = 1.0, 1.5, 0.6, 0.6
+HEAD_M, PITCH_M, TAIL_M, WIDTH_M = 1.0, 1.2, 0.5, 0.6
 BIN_OFFSET_Y = 0.15
 
 
 def bin_slots(x: float, width: float, n: int) -> list[tuple[float, float]]:
-    """Drop points around an arm, nearest first: both sides of the belt, fanning out along x."""
+    """Drop points for a gantry, nearest first: both belt edges, fanning out along x inside its 1 m stroke (6 max)."""
     slots = []
-    for dx in (0.0, -0.3, 0.3, -0.6, 0.6, -0.9, 0.9):
+    for dx in (0.0, -0.3, 0.3):
         slots.append((x + dx, -BIN_OFFSET_Y))
         slots.append((x + dx, width + BIN_OFFSET_Y))
     return slots[:n]
@@ -87,7 +87,7 @@ def line(
     for k, x in enumerate(xs):
         slots = bin_slots(x, WIDTH_M, max(len(assign[k]), 1))
         bins = tuple(Bin(cat, sx, sy) for cat, (sx, sy) in zip(assign[k], slots, strict=False))
-        arms.append(ArmSpec(f"arm{k + 1}", x, WIDTH_M / 2, bins, **arm_kw))
+        arms.append(ArmSpec(f"arm{k + 1}", x, bins, **arm_kw))
     boundaries = ()
     if segmented and n_arms > 1:
         boundaries = (HEAD_M,) + tuple(HEAD_M + PITCH_M * k for k in range(1, n_arms))
@@ -98,27 +98,31 @@ def line(
 
 
 def speed_benchmark() -> dict[str, Scenario]:
-    """The belt-speed ladder's worlds (hopper-fed: running faster brings more items per second)."""
+    """The belt-speed ladder's straight-line worlds (hopper-fed: running faster brings more items per second)."""
     six = uniform_mix(6)
     return {
-        "A 1 arm, 2 cats": line("A 1 arm, 2 cats", 1, uniform_mix(2), Supply(density_per_m=4.0), bins_per_arm=2),
-        "B 3 arms, 6 cats": line("B 3 arms, 6 cats", 3, six, Supply(density_per_m=4.0)),
-        "C bursty": line("C bursty", 3, six, Supply(density_per_m=4.0, burstiness=0.6)),
-        "D sparse 1/m": line("D sparse 1/m", 3, six, Supply(density_per_m=1.0)),
-        "E 6 arms, overlap": line("E 6 arms, overlap", 6, six, Supply(density_per_m=8.0), copies=2),
-        "F MRF mix": line("F MRF mix", 3, mrf_mix(), Supply(density_per_m=5.0)),
-        "G stream 0.9/s": line("G stream 0.9/s", 3, six, Supply(mode="stream", rate_per_s=0.9)),
+        "A 1 arm, 2 cats": line("A 1 arm, 2 cats", 1, uniform_mix(2), Supply(density_per_m=6.0), bins_per_arm=2),
+        "B 3 arms, 6 cats": line("B 3 arms, 6 cats", 3, six, Supply(density_per_m=10.0)),
+        "C bursty": line("C bursty", 3, six, Supply(density_per_m=10.0, burstiness=0.6)),
+        "D sparse 2.5/m": line("D sparse 2.5/m", 3, six, Supply(density_per_m=2.5)),
+        "E 6 arms, overlap": line("E 6 arms, overlap", 6, six, Supply(density_per_m=16.0), copies=2),
+        "F MRF mix": line("F MRF mix", 3, mrf_mix(), Supply(density_per_m=12.0)),
+        "G stream 2/s": line("G stream 2/s", 3, six, Supply(mode="stream", rate_per_s=2.0)),
     }
 
 
+LOOP_PASSES = 1000  # WHY effectively unlimited: on a loop a miss simply comes round again; only residue leaves
+
+
+def _loop(sc: Scenario, name: str) -> Scenario:
+    return sc.with_(name=name, belt=_replace_belt(sc.belt, circulating=True, max_passes=LOOP_PASSES))
+
+
 def circulation_benchmark() -> dict[str, Scenario]:
+    """The same worlds on a recirculating belt: misses come round, so the headline is plain picks/min."""
     base = speed_benchmark()
-    out = {}
-    for key in ("B 3 arms, 6 cats", "D sparse 1/m"):
-        sc = base[key]
-        name = key + " + recirc"
-        out[name] = sc.with_(name=name, belt=_replace_belt(sc.belt, circulating=True))
-    return out
+    keys = ("B 3 arms, 6 cats", "D sparse 2.5/m", "F MRF mix")
+    return {f"{k} · loop": _loop(base[k], f"{k} · loop") for k in keys}
 
 
 def _replace_belt(belt: BeltSpec, **kw) -> BeltSpec:
@@ -132,15 +136,22 @@ def pick_benchmark() -> dict[str, Scenario]:
     six = uniform_mix(6)
     gold = mrf_mix(gold=True)
     return {
-        "PA 3 arms, 6 equal cats": line("PA 3 arms, 6 equal cats", 3, six, Supply(mode="stream", rate_per_s=1.5),
+        "PA 3 arms, 6 equal cats": line("PA 3 arms, 6 equal cats", 3, six, Supply(mode="stream", rate_per_s=3.0),
                                         segmented=False),
-        "PB MRF values + gold": line("PB MRF values + gold", 3, gold, Supply(mode="stream", rate_per_s=1.5),
+        "PB MRF values + gold": line("PB MRF values + gold", 3, gold, Supply(mode="stream", rate_per_s=3.0),
                                      bins_per_arm=3, segmented=False),
-        "PC overlap (2 arms/cat)": line("PC overlap (2 arms/cat)", 3, six, Supply(mode="stream", rate_per_s=1.5),
+        "PC overlap (2 arms/cat)": line("PC overlap (2 arms/cat)", 3, six, Supply(mode="stream", rate_per_s=3.0),
                                         bins_per_arm=4, copies=2, segmented=False),
-        "PD 1 arm, 6 bins": line("PD 1 arm, 6 bins", 1, six, Supply(mode="stream", rate_per_s=0.8), bins_per_arm=6,
+        "PD 1 arm, 6 bins": line("PD 1 arm, 6 bins", 1, six, Supply(mode="stream", rate_per_s=1.0), bins_per_arm=6,
                                  segmented=False),
     }
+
+
+def pick_loop_benchmark() -> dict[str, Scenario]:
+    """Pick order on a recirculating belt: a skipped or missed item comes round again."""
+    base = pick_benchmark()
+    keys = ("PA 3 arms, 6 equal cats", "PB MRF values + gold", "PD 1 arm, 6 bins")
+    return {f"{k} · loop": _loop(base[k], f"{k} · loop") for k in keys}
 
 
 def balanced_line(name: str, n_arms: int, categories: tuple[Category, ...], supply: Supply, bins_per_arm: int = 2,
@@ -167,14 +178,14 @@ def balanced_line(name: str, n_arms: int, categories: tuple[Category, ...], supp
         cats = sorted(assign[k], key=lambda c: -c.share)
         slots = bin_slots(arm.x, WIDTH_M, len(cats))
         bins = tuple(Bin(c.name, sx, sy) for c, (sx, sy) in zip(cats, slots, strict=True))
-        arms.append(ArmSpec(arm.name, arm.x, arm.y, bins, **kw.get("arm_kw", {})))
+        arms.append(ArmSpec(arm.name, arm.x, bins, **kw.get("arm_kw", {})))
     return base.with_(arms=tuple(arms))
 
 
 def layout_benchmark() -> dict[str, Scenario]:
     """Layout, the daily note's first question in miniature: same MRF line, bins dealt three ways."""
     mix = mrf_mix()
-    sup = Supply(density_per_m=5.0)
+    sup = Supply(density_per_m=12.0)
     return {
         "L0 MRF round-robin bins": line("L0 MRF round-robin bins", 3, mix, sup),
         "L1 MRF load-balanced bins": balanced_line("L1 MRF load-balanced bins", 3, mix, sup),

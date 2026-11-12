@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .config import Scenario, travel_time
+from .config import Scenario
 from .engine import Sim
 
 
@@ -84,12 +84,13 @@ def lp_bound(scenario: Scenario, v: float, seed: int, t0: float, t1: float, tail
         ok_cat = sim.arm_cat_mask[k, cats]
         for local in np.nonzero(ok_cat)[0]:
             y = ys[local]
-            half = np.sqrt(max(arm.reach_m**2 - (y - arm.y) ** 2, 0.0))
-            if half <= 0:
+            if not (arm.y_min_m <= y <= arm.y_max_m):
                 continue
+            lo, hi = arm.x_range
             i = ids[local]
-            t_in = et[i] + (arm.x - half - ex[i]) / v
-            t_out = et[i] + (arm.x + half - ex[i]) / v
+            t_in = et[i] + (lo - ex[i]) / v
+            # the grasp dwell must also end inside the stroke (as in the engine)
+            t_out = et[i] + (hi - ex[i]) / v - arm.grasp_dwell_s
             t_in = max(t_in, et[i])
             if t_out <= t_in or v > arm.v_track_max_m_s:
                 continue
@@ -99,7 +100,7 @@ def lp_bound(scenario: Scenario, v: float, seed: int, t0: float, t1: float, tail
             for s in range(s_lo, s_hi + 1):
                 c = t0 + (s + 0.5) * slot_s
                 cx = ex[i] + v * (c - et[i])
-                t_bin = travel_time(float(np.hypot(b[0] - cx, b[1] - y)), arm.tool_speed_m_s, arm.tool_accel_m_s2)
+                t_bin = arm.move_time(float(b[0] - cx), float(b[1] - y))
                 n_always = int(np.floor(arm.grasp_dwell_s / slot_s))
                 n_succ = int(np.floor((arm.grasp_dwell_s + t_bin + arm.release_dwell_s) / slot_s)) - n_always
                 rows, coef = [], []
@@ -111,9 +112,9 @@ def lp_bound(scenario: Scenario, v: float, seed: int, t0: float, t1: float, tail
                     rows.append(r)
                     coef.append(float(ps[local]))
                 if reference:
-                    d_near = float(np.min(np.hypot(bins[sim.arm_cat_mask[k], 0] - cx,
-                                                   bins[sim.arm_cat_mask[k], 1] - y)))
-                    n_in = int(np.floor(travel_time(d_near, arm.tool_speed_m_s, arm.tool_accel_m_s2) / slot_s))
+                    own = bins[sim.arm_cat_mask[k]]
+                    t_near = float(np.min(arm.move_time(own[:, 0] - cx, own[:, 1] - y)))
+                    n_in = int(np.floor(t_near / slot_s))
                     for r in range(max(s - n_in + 1, 0), s + 1):
                         rows.append(r)
                         coef.append(1.0)

@@ -2,11 +2,11 @@
 
 import pytest
 
-from bam_belt_sim import pick_policies as P
-from bam_belt_sim import scenarios as SC
-from bam_belt_sim import speed_policies as S
-from bam_belt_sim.bound import lp_bound, policy_value_on
-from bam_belt_sim.engine import Sim
+from belt_sim import pick_policies as P
+from belt_sim import scenarios as SC
+from belt_sim import speed_policies as S
+from belt_sim.bound import lp_bound, policy_value_on
+from belt_sim.engine import Sim
 
 
 @pytest.mark.parametrize("name", ["PA 3 arms, 6 equal cats", "PD 1 arm, 6 bins"])

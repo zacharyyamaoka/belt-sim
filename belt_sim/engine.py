@@ -27,7 +27,7 @@ from typing import Protocol
 
 import numpy as np
 
-from .config import ArmSpec, Scenario, travel_time
+from .config import ArmSpec, Scenario, trapezoid_position
 
 QUEUED, ON_BELT, HELD, PICKED, LOST = 0, 1, 2, 3, 4
 FREE, APPROACH, GRASP, DELIVER = 0, 1, 2, 3
@@ -77,11 +77,15 @@ class ArmState:
     contact: np.ndarray = field(default_factory=lambda: np.zeros(2))
     busy_s: float = 0.0
     busy_since: float = 0.0
+    # The current x/y move (for drawing the gantry): from, to, start time. Each axis runs its own trapezoid.
+    move_from: np.ndarray = field(default_factory=lambda: np.zeros(2))
+    move_to: np.ndarray = field(default_factory=lambda: np.zeros(2))
+    move_t0: float = 0.0
 
 
 @dataclass
 class Log:
-    picks: list = field(default_factory=list)  # (t, item, arm, value, category)
+    picks: list = field(default_factory=list)  # (t, item, arm, value, category, passes before the pick)
     losses: list = field(default_factory=list)  # (t, item, value, category)
     attempts: int = 0
     failed_grasps: int = 0
@@ -210,6 +214,7 @@ class Sim:
         for a, spec in zip(self.arms, scenario.arms, strict=True):
             b = spec.bins[0]
             a.pos = np.array([b.x, b.y], float)
+            a.move_from, a.move_to = a.pos.copy(), a.pos.copy()
         cats = scenario.category_index()
         self.arm_cat_mask = np.zeros((len(scenario.arms), len(scenario.categories)), bool)
         self.arm_bins = []
@@ -225,6 +230,7 @@ class Sim:
             for j, other in enumerate(scenario.arms):
                 if other.x > spec.x:
                     self.downstream_cat[k] |= self.arm_cat_mask[j]
+        self.targetable = self.arm_cat_mask.any(axis=0)
         self.log = Log()
         self._next_control = 0.0
         self._ensure_items(1)
@@ -378,7 +384,8 @@ class Sim:
                     continue
                 self.reserved[i] = -1
                 belt = self.sc.belt
-                if belt.circulating and self.passes[i] + 1 < belt.max_passes:
+                if (belt.circulating and self.passes[i] + 1 < belt.max_passes
+                        and self.targetable[self.cat[i]]):
                     self.passes[i] += 1
                     self.status[i] = QUEUED
                     self.recirc.append((self.t + belt.loop_delay_s, i))
@@ -428,9 +435,8 @@ class Sim:
     # ------------------------------------------------------------------ arms
     def in_reach(self, k: int, px, py):
         spec = self.sc.arms[k]
-        if spec.window_x is not None:
-            return (px >= spec.window_x[0]) & (px < spec.window_x[1])
-        return (px - spec.x) ** 2 + (py - spec.y) ** 2 <= spec.reach_m**2
+        lo, hi = spec.x_range
+        return (px >= lo) & (px < hi) & (py >= spec.y_min_m) & (py <= spec.y_max_m)
 
     def candidates(self, k: int, from_pos: np.ndarray | None = None, extra_delay_s: float = 0.0) -> Candidates:
         """Items arm k could commit to, predicted at the current belt speeds.
@@ -444,8 +450,8 @@ class Sim:
             ids = ids[self.arm_cat_mask[k, self.cat[ids]]]
         if ids.size:
             x = self.x[ids]
-            lo = (spec.window_x[0] if spec.window_x else spec.x - spec.reach_m) - 3.0
-            hi = spec.window_x[1] if spec.window_x else spec.x + spec.reach_m
+            lo = spec.x_range[0] - 3.0
+            hi = spec.x_range[1]
             m = (x >= lo) & (x <= hi)
             ids = ids[m]
         if ids.size == 0:
@@ -458,15 +464,14 @@ class Sim:
         if spec.fixed_reach_s is not None:
             tau = np.full(ids.size, spec.fixed_reach_s)
         else:
-            tau = travel_time(np.hypot(xd - pos[0], y - pos[1]), spec.tool_speed_m_s, spec.tool_accel_m_s2)
+            tau = spec.move_time(xd - pos[0], y - pos[1])
             for _ in range(4):
-                tau = travel_time(np.hypot(xd + u * tau - pos[0], y - pos[1]), spec.tool_speed_m_s,
-                                  spec.tool_accel_m_s2)
+                tau = spec.move_time(xd + u * tau - pos[0], y - pos[1])
         cx = xd + u * tau
         # WHY the dwell end too: the tool tracks the item while it closes, so the item must still be in reach when
         # the grasp completes, not only at first contact (caught by test_arms_grasp_only_inside_reach...).
         dwell = 0.0 if spec.fixed_cycle_s is not None else spec.grasp_dwell_s
-        ok = (self.in_reach(k, cx, y) & self.in_reach(k, cx + u * dwell, y)
+        ok = (self.in_reach(k, cx, y) & self.in_reach(k, self._dwell_end_x(cx, u, dwell), y)
               & (np.abs(u) <= spec.v_track_max_m_s + 1e-9) & (cx < self.sc.belt.length_m))
         ids, tau, cx, y, u = ids[ok], tau[ok], cx[ok], y[ok], u[ok]
         cats = self.cat[ids]
@@ -474,20 +479,22 @@ class Sim:
             cycle = np.full(ids.size, spec.fixed_cycle_s)
         else:
             bins = self.arm_bins[k][cats]
-            cycle = (tau + spec.grasp_dwell_s
-                     + travel_time(np.hypot(bins[:, 0] - cx, bins[:, 1] - y), spec.tool_speed_m_s,
-                                   spec.tool_accel_m_s2)
+            cycle = (tau + spec.grasp_dwell_s + spec.move_time(bins[:, 0] - cx, bins[:, 1] - y)
                      + spec.release_dwell_s)
         exit_x = self._exit_x(k, y)
         with np.errstate(divide="ignore", invalid="ignore"):
             exit_s = np.where(u > 1e-9, (exit_x - self.x[ids]) / u, np.inf)
         return Candidates(ids, tau, cx, y, cycle, self.p[ids], self.value[ids], self.seq[ids], exit_s)
 
+    def _dwell_end_x(self, x, u, dwell: float):
+        """Worst-case item position when a grasp dwell ends: the belt may accelerate the whole time (caught by
+        test_arms_grasp_only_inside_reach...: items drifted out of the stroke while the gripper closed)."""
+        if dwell <= 0.0:
+            return x
+        return x + np.maximum(u, 0.0) * dwell + 0.5 * self.sc.belt.accel_m_s2 * dwell * dwell
+
     def _exit_x(self, k: int, y: np.ndarray) -> np.ndarray:
-        spec = self.sc.arms[k]
-        if spec.window_x is not None:
-            return np.full(np.shape(y), spec.window_x[1])
-        return spec.x + np.sqrt(np.maximum(spec.reach_m**2 - (y - spec.y) ** 2, 0.0))
+        return np.full(np.shape(y), self.sc.arms[k].x_range[1])
 
     def time_until_free(self, k: int) -> float:
         a, spec = self.arms[k], self.sc.arms[k]
@@ -498,13 +505,13 @@ class Sim:
         if a.phase == APPROACH:
             i = a.item
             b = self.arm_bins[k][self.cat[i]]
-            return (a.t_contact - self.t) + spec.grasp_dwell_s + spec.travel_s(
-                float(np.hypot(b[0] - a.contact[0], b[1] - a.contact[1]))) + spec.release_dwell_s
+            return (a.t_contact - self.t) + spec.grasp_dwell_s + spec.move_time(
+                float(b[0] - a.contact[0]), float(b[1] - a.contact[1])) + spec.release_dwell_s
         if a.phase == GRASP:
             i = a.item
             b = self.arm_bins[k][self.cat[i]]
-            return (a.t_phase_end - self.t) + spec.travel_s(
-                float(np.hypot(b[0] - a.contact[0], b[1] - a.contact[1]))) + spec.release_dwell_s
+            return (a.t_phase_end - self.t) + spec.move_time(
+                float(b[0] - a.contact[0]), float(b[1] - a.contact[1])) + spec.release_dwell_s
         return max(a.t_phase_end - self.t, 0.0)
 
     def free_position(self, k: int) -> np.ndarray:
@@ -525,7 +532,7 @@ class Sim:
             if a.phase == DELIVER and t + EPS >= a.t_phase_end:
                 i = a.item
                 self.status[i] = PICKED
-                self.log.picks.append((t, i, k, float(self.value[i]), int(self.cat[i])))
+                self.log.picks.append((t, i, k, float(self.value[i]), int(self.cat[i]), int(self.passes[i])))
                 a.pos = self.arm_bins[k][self.cat[i]].copy()
                 self._set_free(a)
             if fixed and a.phase == FREE and t + EPS < a.t_free:
@@ -544,6 +551,7 @@ class Sim:
                 a.t_contact = t + float(cand.tau[c])
                 a.t_first_contact = a.t_contact
                 a.contact = np.array([cand.cx[c], cand.cy[c]])
+                a.move_from, a.move_to, a.move_t0 = a.pos.copy(), a.contact.copy(), t
                 a.busy_since = t
                 if fixed:
                     a.t_free = t + spec.fixed_cycle_s
@@ -563,7 +571,7 @@ class Sim:
             u = float(self.item_speed(np.array([i]))[0])
             here = abs(xi - a.contact[0]) <= spec.contact_tol_m or fixed
             dwell = 0.0 if fixed else spec.grasp_dwell_s
-            ok = (bool(self.in_reach(k, xi, yi)) and bool(self.in_reach(k, xi + u * dwell, yi))
+            ok = (bool(self.in_reach(k, xi, yi)) and bool(self.in_reach(k, self._dwell_end_x(xi, u, dwell), yi))
                   and abs(u) <= spec.v_track_max_m_s + 1e-9 and here)
             if not ok and not fixed and self.t - a.t_first_contact <= spec.replan_budget_s:
                 if self._replan(k, a, spec, xi, yi, u):
@@ -572,7 +580,7 @@ class Sim:
             self.log.missed_intercepts += 1
             if self.reserved[i] == k:
                 self.reserved[i] = -1
-            a.pos = a.contact.copy()
+            a.pos = self.tool_xy(k)
             self._set_free(a)
             return
         a.contact = np.array([self.x[i], self.y[i]])
@@ -590,12 +598,14 @@ class Sim:
         if abs(u) > spec.v_track_max_m_s:
             a.t_contact = self.t + self.dt  # too fast to grasp right now: hover and wait for the belt to slow
             return True
-        tau = spec.travel_s(float(np.hypot(xi - a.contact[0], yi - a.contact[1])))
+        here = self.tool_xy(k)
+        tau = spec.move_time(xi - here[0], yi - here[1])
         for _ in range(3):
-            tau = spec.travel_s(float(np.hypot(xi + u * tau - a.contact[0], yi - a.contact[1])))
+            tau = spec.move_time(xi + u * tau - here[0], yi - here[1])
         cx = xi + u * tau
-        if bool(self.in_reach(k, cx, yi)) and bool(self.in_reach(k, cx + u * spec.grasp_dwell_s, yi)):
+        if bool(self.in_reach(k, cx, yi)) and bool(self.in_reach(k, self._dwell_end_x(cx, u, spec.grasp_dwell_s), yi)):
             a.contact = np.array([cx, yi])
+            a.move_from, a.move_to, a.move_t0 = here, a.contact.copy(), self.t
             a.t_contact = self.t + max(tau, self.dt)
             return True
         if cx < exit_x:
@@ -618,12 +628,13 @@ class Sim:
             self.on_belt = self.on_belt[self.on_belt != i]
             if spec.fixed_cycle_s is not None:
                 self.status[i] = PICKED
-                self.log.picks.append((self.t, i, k, float(self.value[i]), int(self.cat[i])))
+                self.log.picks.append((self.t, i, k, float(self.value[i]), int(self.cat[i]), int(self.passes[i])))
                 self._set_free(a)
                 return
             b = self.arm_bins[k][self.cat[i]]
             a.phase = DELIVER
-            a.t_phase_end = self.t + spec.travel_s(float(np.hypot(b[0] - a.contact[0], b[1] - a.contact[1]))) \
+            a.move_from, a.move_to, a.move_t0 = a.contact.copy(), np.array(b, float), self.t
+            a.t_phase_end = self.t + spec.move_time(float(b[0] - a.contact[0]), float(b[1] - a.contact[1])) \
                 + spec.release_dwell_s
         else:
             self.log.failed_grasps += 1
@@ -634,19 +645,36 @@ class Sim:
     def _extra_draw(self, i: int, n: int) -> float:
         return float(np.random.default_rng([i, n, 0xD2A]).random())
 
+    def tool_xy(self, k: int) -> np.ndarray:
+        """Where arm k's gripper is now: on its x/y trapezoids while moving, riding its item while grasping."""
+        a, spec = self.arms[k], self.sc.arms[k]
+        if a.phase == GRASP and a.item >= 0:
+            return np.array([self.x[a.item], self.y[a.item]])
+        if a.phase in (APPROACH, DELIVER):
+            d = a.move_to - a.move_from
+            t = self.t - a.move_t0
+            return a.move_from + np.array([trapezoid_position(float(d[0]), t, spec.vx_max, spec.ax_max),
+                                           trapezoid_position(float(d[1]), t, spec.vy_max, spec.ay_max)])
+        return a.pos.copy()
+
+    def gripper_state(self, k: int) -> tuple[float, float, int]:
+        """(height 0 = down at the belt .. 1 = up, opening 0 = closed .. 1 = open, held category or -1) for drawing."""
+        a, spec = self.arms[k], self.sc.arms[k]
+        if a.phase == GRASP:
+            f = 1.0 - max(a.t_phase_end - self.t, 0.0) / max(spec.grasp_dwell_s, 1e-9)
+            return 1.0 - math.sin(math.pi * min(max(f, 0.0), 1.0)), (1.0 if f < 0.5 else 0.0), -1
+        if a.phase == DELIVER:
+            releasing = self.t > a.t_phase_end - spec.release_dwell_s
+            return 1.0, (1.0 if releasing else 0.0), (-1 if releasing else int(self.cat[a.item]))
+        return 1.0, 1.0, -1
+
     def _record(self) -> None:
         ids = self.on_belt
         arms = []
         for k, a in enumerate(self.arms):
-            if a.phase == FREE:
-                pos = a.pos
-            elif a.phase in (APPROACH,):
-                pos = a.contact
-            elif a.phase == GRASP:
-                pos = np.array([self.x[a.item], self.y[a.item]])
-            else:
-                pos = self.arm_bins[k][self.cat[a.item]]
-            arms.append((float(pos[0]), float(pos[1]), int(a.phase), int(a.item)))
+            pos = self.tool_xy(k)
+            z, grip, held = self.gripper_state(k)
+            arms.append((float(pos[0]), float(pos[1]), int(a.phase), int(a.item), z, grip, held))
         self.log.frames.append({
             "t": self.t,
             "ids": ids.copy(),

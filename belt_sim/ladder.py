@@ -5,8 +5,9 @@ homework. Tuning seeds 0-2, evaluation seeds 100-104, same items for every rung 
 
 Speed ladder headline, hopper supply: **SPPM at recovery >= 90 %** - the most successful picks per minute a policy
 reaches while sending at most a tenth of the targeted items to landfill. Without that gate "run at max speed" wins
-SPPM and loses everything else (Daily Note Nov 11: "If you just want maximum throughput then just run it at max
-speed and it all goes to waste out the other side"). Stream supply: SPPM with the gate "the backlog does not grow".
+SPPM and loses everything else ("if you just want maximum throughput then just run it at max speed and it all goes
+to waste out the other side"). Stream supply: SPPM with the gate "the backlog does not grow". Recirculating belt:
+plain SPPM - a miss comes round again, so throughput is the question.
 
 Pick ladder headline: value per minute, and its share of the LP reference and bound (bound.py).
 """
@@ -75,6 +76,7 @@ def _all_scenarios() -> dict:
     out.update(SC.circulation_benchmark())
     out.update(SC.pick_benchmark())
     out.update(SC.layout_benchmark())
+    out.update(SC.pick_loop_benchmark())
     return out
 
 
@@ -89,6 +91,8 @@ def _run_speed(args):
 
 
 def _passes(sc, m: dict) -> bool:
+    if sc.belt.circulating:
+        return True  # WHY no gate on a loop: a miss comes round again, so the question is plain picks/min
     if sc.supply.mode == "stream":
         return m["backlog_growth_per_min"] <= BACKLOG_GATE_PER_MIN
     return m["recovery"] >= RECOVERY_GATE
@@ -101,6 +105,15 @@ def _score(sc, m: dict) -> float:
     if sc.supply.mode == "stream":
         return -m["backlog_growth_per_min"]
     return -1000.0 * (RECOVERY_GATE - m["recovery"]) + 1e-3 * m["sppm"]
+
+
+FRONTIER_KEYS = ("sppm", "sppm_sd", "recovery", "recovery_sd", "value_per_min", "utilisation", "mean_speed_m_s",
+                 "missed_intercept_share", "passes_per_pick", "backlog_growth_per_min", "window_value")
+
+
+def _keep(m: dict) -> dict:
+    """The frontier stores what the report and W&B read; every metric of every config made the file 700 KB."""
+    return {k: m[k] for k in FRONTIER_KEYS if k in m}
 
 
 def _mean(ms: list[dict]) -> dict:
@@ -127,7 +140,7 @@ def climb_speed(scenario_names, tune_s=600.0, eval_s=900.0, workers=None, log=pr
     frontier: dict = {}
     for (n, rung, pj), ms in tune.items():
         mm = _mean(ms)
-        frontier.setdefault(n, {}).setdefault(rung, []).append({"params": json.loads(pj), **mm})
+        frontier.setdefault(n, {}).setdefault(rung, []).append({"params": json.loads(pj), **_keep(mm)})
         sc = scs[n]
         sc_val = _score(sc, mm)
         if (n, rung) not in best or sc_val > best[(n, rung)][0]:
@@ -151,6 +164,7 @@ def climb_speed(scenario_names, tune_s=600.0, eval_s=900.0, workers=None, log=pr
             # WHY no per-run dicts: mean and sd are what the report reads; the runs made the file 700 KB.
             rows[r.rung] = {"params": best[(n, r.rung)][1], "passes_gate": _passes(sc, mm), **mm}
         out["scenarios"][n] = {"capacity_ppm": sc.capacity_ppm(), "supply": sc.supply.mode, "rungs": rows,
+                               "loop": sc.belt.circulating,
                                "frontier": frontier[n], "describe": describe(sc)}
     return out
 
@@ -224,7 +238,10 @@ def climb_pick(scenario_names, duration=300.0, workers=None, log=print) -> dict:
     workers = workers or max(1, (os.cpu_count() or 4) - 4)
     jobs = [(n, r, p, s, duration) for n in scenario_names for r, (_t, grid) in PICK_RUNGS.items() for p in grid
             for s in TUNE_SEEDS + EVAL_SEEDS]
-    bjobs = [(n, s, duration, ref) for n in scenario_names for s in EVAL_SEEDS for ref in (False, True)]
+    scs = _all_scenarios()
+    # WHY no LP on a loop: an item's re-entry depends on what the arms did, so its windows are not known in advance
+    bjobs = [(n, s, duration, ref) for n in scenario_names if not scs[n].belt.circulating for s in EVAL_SEEDS
+             for ref in (False, True)]
     log(f"pick ladder: {len(jobs)} runs + {len(bjobs)} LPs on {workers} workers")
     t0 = time.time()
     res: dict = {}
@@ -239,30 +256,36 @@ def climb_pick(scenario_names, duration=300.0, workers=None, log=print) -> dict:
     log(f"  done in {time.time() - t0:.0f} s")
     out = {"belt_speed_m_s": PICK_SPEED_M_S, "duration_s": duration, "tune_seeds": TUNE_SEEDS,
            "eval_seeds": EVAL_SEEDS, "rungs": {r: t for r, (t, _g) in PICK_RUNGS.items()}, "scenarios": {}}
-    scs = _all_scenarios()
     for n in scenario_names:
         rows = {}
+        loop = scs[n].belt.circulating
+        key = "value_per_min" if loop else "window_value"
+        frontier = {}
         for r, (_t, grid) in PICK_RUNGS.items():
             # tune: best mean window value on tuning seeds
             best_p, best_v = None, -math.inf
             for p in grid:
                 pj = json.dumps(p, sort_keys=True)
-                v = np.mean([res[(n, r, pj)][s]["window_value"] for s in TUNE_SEEDS])
+                v = np.mean([res[(n, r, pj)][s][key] for s in TUNE_SEEDS])
+                frontier.setdefault(r, []).append({"params": p, **_keep(_mean([
+                    {k: x for k, x in res[(n, r, pj)][s].items() if isinstance(x, int | float)} for s in TUNE_SEEDS]))})
                 if v > best_v:
                     best_p, best_v = pj, v
             ev = [res[(n, r, best_p)][s] for s in EVAL_SEEDS]
             row = _mean([{k: v for k, v in m.items() if isinstance(v, int | float)} for m in ev])
-            ref = [bounds[n]["reference"][s] for s in EVAL_SEEDS]
-            bnd = [bounds[n]["bound"][s] for s in EVAL_SEEDS]
-            row["share_of_reference"] = float(np.mean([m["window_value"] / x for m, x in zip(ev, ref, strict=True)]))
-            row["share_of_bound"] = float(np.mean([m["window_value"] / x for m, x in zip(ev, bnd, strict=True)]))
+            if not loop:
+                ref = [bounds[n]["reference"][s] for s in EVAL_SEEDS]
+                bnd = [bounds[n]["bound"][s] for s in EVAL_SEEDS]
+                row["share_of_reference"] = float(np.mean([m["window_value"] / x for m, x in zip(ev, ref, strict=True)]))
+                row["share_of_bound"] = float(np.mean([m["window_value"] / x for m, x in zip(ev, bnd, strict=True)]))
             row["params"] = json.loads(best_p)
             if "gold_items" in ev[0]:
                 gi = sum(m["gold_items"] for m in ev)
                 row["gold_recovery"] = sum(m["gold_picked"] for m in ev) / max(gi, 1)
                 row["gold_items_total"] = gi
             rows[r] = row
-        out["scenarios"][n] = {"rungs": rows, "bound": bounds[n], "describe": describe(scs[n]),
+        out["scenarios"][n] = {"rungs": rows, "bound": bounds.get(n), "describe": describe(scs[n]), "loop": loop,
+                               "frontier": frontier,
                                "value_unit": "USD" if "gold" in [c.name for c in scs[n].categories] or
                                "PET" in [c.name for c in scs[n].categories] else "picks"}
     return out

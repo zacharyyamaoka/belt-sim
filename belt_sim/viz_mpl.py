@@ -35,12 +35,40 @@ def record(scenario, speed, pick, seed=100, t_start=150.0, t_len=20.0, every=2):
     return sim
 
 
+def draw_gantry(ax, sc, arm, state):
+    """Top-down Cartesian gantry: two rails along the belt over its stroke, the bridge across at the x carriage, the
+    y carriage on the bridge, and a two-jaw gripper that opens, closes and carries its item to the bin."""
+    lo, hi = arm.x_range
+    y0, y1 = arm.y_min_m, arm.y_max_m
+    for b in arm.bins:
+        ci = sc.category_index()[b.category]
+        ax.add_patch(Rectangle((b.x - 0.07, b.y - 0.07), 0.14, 0.14, facecolor=sc.categories[ci].color,
+                               edgecolor="black", lw=0.5, alpha=0.85, zorder=2))
+    ax.add_patch(Rectangle((lo, y0), hi - lo, y1 - y0, fill=False, ls=":", lw=0.6, ec="#888888", zorder=2))
+    for yr in (y0, y1):
+        ax.plot([lo, hi], [yr, yr], color="#444444", lw=2.2, solid_capstyle="butt", zorder=4)
+    tx, ty, phase, _item = state[:4]
+    z, grip, held = (state[4], state[5], state[6]) if len(state) > 4 else (1.0, 1.0, -1)
+    ax.plot([tx, tx], [y0, y1], color="#6b6b6b", lw=3.0, alpha=0.9, solid_capstyle="butt", zorder=5)
+    for yr in (y0, y1):
+        ax.add_patch(Rectangle((tx - 0.05, yr - 0.03), 0.10, 0.06, fc="#333333", zorder=6))
+    # the carriage grows a touch when the gripper is up (a top-down hint of z)
+    size = 0.075 + 0.025 * z
+    ax.add_patch(Rectangle((tx - size / 2, ty - size / 2), size, size, fc="white", ec=PHASE_COLOR[phase], lw=1.6,
+                           zorder=7))
+    gap = 0.012 + 0.028 * grip
+    for sgn in (-1, 1):
+        ax.add_patch(Rectangle((tx + sgn * gap - 0.006, ty - 0.035), 0.012, 0.07, fc="#222222", zorder=8))
+    if held >= 0:
+        ax.scatter([tx], [ty], s=26, c=[sc.categories[held].color], edgecolors="black", linewidths=0.6, zorder=9)
+
+
 def _draw_panel(ax, sim: Sim, frame: dict, title: str, gold_idx: int | None):
     sc = sim.sc
     belt = sc.belt
     ax.clear()
     ax.set_xlim(-0.2, belt.length_m + 0.2)
-    ax.set_ylim(-0.45, belt.width_m + 0.62)
+    ax.set_ylim(-0.42, belt.width_m + 0.66)
     ax.set_aspect("equal")
     ax.axis("off")
     edges = belt.segment_edges()
@@ -52,26 +80,18 @@ def _draw_panel(ax, sim: Sim, frame: dict, title: str, gold_idx: int | None):
         ax.add_patch(Rectangle((edges[j], 0), edges[j + 1] - edges[j], belt.width_m, facecolor=col,
                                edgecolor="#999999", lw=0.6))
         if belt.n_segments > 1:
-            ax.text((edges[j] + edges[j + 1]) / 2, belt.width_m + 0.36, f"{v:+.2f}", ha="center", va="center",
+            ax.text((edges[j] + edges[j + 1]) / 2, belt.width_m + 0.42, f"{v:+.2f}", ha="center", va="center",
                     fontsize=6.5, color="#333333")
-    for k, arm in enumerate(sc.arms):
-        ax.add_patch(Circle((arm.x, arm.y), arm.reach_m, fill=False, ls="--", lw=0.6, color="#777777"))
-        for b in arm.bins:
-            ci = sc.category_index()[b.category]
-            ax.add_patch(Rectangle((b.x - 0.07, b.y - 0.07), 0.14, 0.14, facecolor=sc.categories[ci].color,
-                                   edgecolor="black", lw=0.5, alpha=0.85))
-        tx, ty, phase, _item = frame["arms"][k]
-        ax.plot([arm.x, tx], [arm.y, ty], color="#555555", lw=1.2, solid_capstyle="round")
-        ax.add_patch(Circle((arm.x, arm.y), 0.035, color="#222222"))
-        ax.add_patch(Circle((tx, ty), 0.04, facecolor="white", edgecolor=PHASE_COLOR[phase], lw=1.8))
     cols = [sc.categories[c].color for c in frame["cat"]]
     sizes = np.where(frame["cat"] == gold_idx, 70, 22) if gold_idx is not None else 22
     edge = np.where(frame["reserved"] >= 0, "black", "none")
     ax.scatter(frame["x"], frame["y"], s=sizes, c=cols, edgecolors=edge, linewidths=0.8, zorder=3)
+    for k, arm in enumerate(sc.arms):
+        draw_gantry(ax, sc, arm, frame["arms"][k])
     if belt.n_segments == 1 or not belt.boundaries_m:
-        ax.text(belt.length_m / 2, belt.width_m + 0.36, f"belt {frame['v'][0]:+.2f} m/s", ha="center",
+        ax.text(belt.length_m / 2, belt.width_m + 0.42, f"belt {frame['v'][0]:+.2f} m/s", ha="center",
                 fontsize=7, color="#333333")
-    ax.text(-0.15, belt.width_m + 0.56, title, ha="left", va="center", fontsize=8.5, weight="bold")
+    ax.text(-0.15, belt.width_m + 0.58, title, ha="left", va="center", fontsize=8.5, weight="bold")
     ax.text(belt.length_m + 0.15, -0.36, f"picked {frame['picked']}   lost {frame['lost']}", ha="right",
             va="center", fontsize=8)
 
