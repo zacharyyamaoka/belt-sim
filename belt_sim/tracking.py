@@ -115,10 +115,10 @@ def log_all(results_dir: Path, out_dir: Path, workers: int | None = None, upload
                 n_runs += 1
     log(f"W&B: wrote {n_runs} offline runs under {out_dir}")
     if upload:
+        # WHY explicit run dirs: `wandb sync --sync-all` was removed in recent wandb releases
         runs = sorted(str(p) for p in (out_dir / "wandb").glob("offline-run-*"))
-        for i in range(0, len(runs), 50):
-            subprocess.run([str(Path(sys.executable).parent / "wandb"), "sync", *runs[i:i + 50]], check=False,
-                           stdout=subprocess.DEVNULL)
+        subprocess.run([str(Path(sys.executable).parent / "wandb"), "sync", "--yes", *runs], check=False,
+                       stdout=subprocess.DEVNULL)
         log("W&B: synced")
     api = wandb.Api()
     entity = api.default_entity
